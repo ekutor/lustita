@@ -86,7 +86,7 @@ public class ZyncZimbra {
 		createConex(null);
 		try{
 			
-			LogInfo.T("Intento :: passsw:"+ar.getPassword());
+			//LogInfo.T("Intento :: passsw:"+ar.getPassword());
 			zimbraaccount.AuthResponse resp = port.authRequest(ar);
 			token = resp.getAuthToken();
 			LogInfo.T("Token obtenido:: "+token);
@@ -99,7 +99,7 @@ public class ZyncZimbra {
 			String p = db.getPassW(u); 
 			p = Util.convertChars(p);
 			u.setPassword(p);
-			LogInfo.T("passw:: "+p);
+			//LogInfo.T("passw:: "+p);
 			//cont++;
 			getAuth(u);
 			
