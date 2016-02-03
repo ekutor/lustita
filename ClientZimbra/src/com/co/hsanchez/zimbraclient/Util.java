@@ -22,6 +22,8 @@ public class Util {
 		START, END;
 	} 
 	
+	public static String fechaInicial,fechaFinal;
+	
 	public static void main(String[] args ){
 		getMeetingDate(Calendar.getInstance());
 	}
@@ -79,7 +81,7 @@ public class Util {
 			c.add(Calendar.DATE, -3);
 		}
 		
-		String fechaInicial = sd.format(c.getTime());
+		fechaInicial = sd.format(c.getTime());
 		LogInfo.T("Fecha Inicial: "+fechaInicial);
 		return c;
 	}
@@ -108,8 +110,8 @@ public class Util {
 			c.add(Calendar.DATE, 13);
 		}
 		
-		String fecha = sd.format(c.getTime());
-		LogInfo.T("Fecha Final: "+fecha);
+		fechaFinal = sd.format(c.getTime());
+		LogInfo.T("Fecha Final: "+fechaFinal);
 		return c;
 	}
 	

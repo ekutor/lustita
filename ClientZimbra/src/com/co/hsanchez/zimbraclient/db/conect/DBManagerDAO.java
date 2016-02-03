@@ -128,7 +128,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 		
 		if (sr.getHitOrCOrM() != null) {
 			if (!sr.getHitOrCOrM().isEmpty()) {
-				//deleteMeetings(u);
+			
 				for (Object o : sr.getHitOrCOrM()) {
 					AppointmentHitInfo ap = (AppointmentHitInfo) o;
 					NotaZimbra n = NotaZimbra.conversor(ap, u);
@@ -142,7 +142,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 					insertMeeting(n);
 					l.add(n);	
 				}
-				deleteMeetings(l,random , created_by, time); 
+				deleteMeetings(l,random , created_by); 
 			}
 		}
 		return l;
@@ -181,7 +181,9 @@ public class DBManagerDAO extends JDBCResourceManager {
 						"type = ?, " +
 						"sequence = ?, " +
 						"creator = ?, " +
-						"assigned_user_id = ? " +
+						"assigned_user_id = ?, " +
+						"external_id = ?, " +
+						"deleted = '0' " +
 						"WHERE id = ? ";
 				
 				
@@ -197,13 +199,15 @@ public class DBManagerDAO extends JDBCResourceManager {
 				st.setInt(9,n.getRandom());
 				st.setString(10,n.getCreator());
 				st.setString(11,n.getAssigned_user_id());
-				st.setString(12,n.getId());
+				st.setString(12,n.getIdZimbra());
+				st.setString(13,n.getId());
 				
 				int act = st.executeUpdate();
 				LogInfo.T("UPDATE actualizado 1::" + act );
 				
 				String sql2 = "UPDATE `meetings_users` SET" +
-						" `accept_status` = ? WHERE user_id = ? "+
+						" `accept_status` = ?, deleted = '0' " +
+						"WHERE user_id = ? "+
 					"AND meeting_id = ?";
 				st = conn.prepareStatement(sql2);
 				
@@ -258,6 +262,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 		}
 			return resp;
 		}
+
 	/**
 	 * metodo para ajustar los creadores de las citas porque zimbra puede devolver un correo que no es el correcto en sugar 
 	 * @param n
@@ -292,8 +297,8 @@ public class DBManagerDAO extends JDBCResourceManager {
 //			
 	}
 	private boolean meetExists(NotaZimbra n) {
-	//	String sql = "SELECT id FROM `meetings` WHERE  `external_id` = ? ";
-		String sql = "SELECT id FROM `meetings` WHERE  `name` = ? ";
+		String sql = "SELECT id FROM `meetings` WHERE  `external_id` = ? ";
+		//String sql = "SELECT id FROM `meetings` WHERE  `name` = ? ";
 		
 		LogInfo.T("CONSULTANDO Reunion::" + n.getName() + " id_Zimbra "+n.getIdZimbra());
 		Connection conn = null;
@@ -303,14 +308,23 @@ public class DBManagerDAO extends JDBCResourceManager {
 			conn.setAutoCommit( false );
 			
 			st = conn.prepareStatement(sql);
-		//	st.setString(1,n.getIdZimbra());
-			st.setString(1,n.getName());
+			st.setString(1,n.getIdZimbra());
+		//	st.setString(1,n.getName());
 			
 			ResultSet rs = st.executeQuery();
 			if(rs.next()){
 				LogInfo.T("Reunion ya existe::" + n.getName() );
 				n.setId(rs.getString("id"));
 				return true;
+			}else{
+				st = conn.prepareStatement(sql);
+				st.setString(1,n.getName());
+				rs = st.executeQuery();
+				if(rs.next()){
+					LogInfo.T("Reunion ya existe::" + n.getName() );
+					n.setId(rs.getString("id"));
+					return true;
+				}
 			}
 	        
 		}catch (Exception e) {
@@ -377,11 +391,9 @@ public class DBManagerDAO extends JDBCResourceManager {
 	}
 	
 	
-	public boolean deleteMeetings(List<NotaZimbra> notes, int random , String actualUser, int time){
+	public boolean deleteMeetings(List<NotaZimbra> notes, int random , String actualUser){
 		LogInfo.T("Eliminando  Reuniones::");
 		boolean resp = false;
-		
-		Calendar c = Util.getInitDate(time);
 		
 		for(int i = 0; i< notes.size(); i++){
 			
@@ -393,23 +405,26 @@ public class DBManagerDAO extends JDBCResourceManager {
 			conn = getConnection();
 			
 			stm = conn.createStatement();
-			String rel = getRelMeetUser(actualUser, random, Util.getInitDateString(c) );
+			String rel = getRelMeetUser(actualUser, random);
 			conn.setAutoCommit(false);
-			String sql = "DELETE FROM meetings_users WHERE " +
+			String sql = "UPDATE meetings_users SET deleted = '1' WHERE " +
 					"id IN ( # )";
 			int r = 0;	
 			if(rel != null && rel.length()>1){
-			 sql = sql.replaceFirst("#", rel);
+				sql = sql.replaceFirst("#", rel);
 			 
-			LogInfo.T("Reuniones Eliminadas SQL1 :: "+sql);
-			r = stm.executeUpdate(sql);
+				LogInfo.T("Reuniones Eliminadas SQL1 :: "+sql);
+				r = stm.executeUpdate(sql);
 			}
-			 sql = "DELETE FROM meetings WHERE " +
-						"sequence <> # AND created_by = '#' " +
-						"AND date_start >= STR_TO_DATE( #,'%Y/%m/%d')";
-			sql = sql.replaceFirst("#", String.valueOf(random));
+			 sql = "UPDATE meetings SET deleted = '1' WHERE created_by = '#' " +
+					 "AND (date_start BETWEEN  STR_TO_DATE( '#','%Y/%m/%d') AND STR_TO_DATE( '#','%Y/%m/%d')) " +
+					 "AND sequence <> # AND type = 'Zimbra'"; 
 			sql = sql.replaceFirst("#", actualUser);
-			sql = sql.replaceFirst("#", Util.getInitDateString(c)); 
+			sql = sql.replaceFirst("#", Util.fechaInicial);
+			sql = sql.replaceFirst("#", Util.fechaFinal);
+			sql = sql.replaceFirst("#", String.valueOf(random));
+			
+			 
 			
 			LogInfo.T("Reuniones Eliminadas SQL :: "+sql);
 		
@@ -494,15 +509,17 @@ public class DBManagerDAO extends JDBCResourceManager {
 		
 	}
 	
-	public String  getRelMeetUser(String actualUser, int random, String date){
+	public String  getRelMeetUser(String actualUser, int random){
 		
 		String sql = "SELECT mu.id FROM meetings_users mu " +
 				"LEFT JOIN meetings m ON m.id = mu.meeting_id "+
-				"WHERE mu.user_id = '#' AND m.date_start >= STR_TO_DATE( '#','%Y/%m/%d') " +
-				"AND m.sequence <> #"; 
+				"WHERE mu.user_id = '#' " +
+				"AND (m.date_start BETWEEN  STR_TO_DATE( '#','%Y/%m/%d') AND STR_TO_DATE( '#','%Y/%m/%d')) " +
+				"AND m.sequence <> # AND m.type = 'Zimbra'"; 
 				
 		sql = sql.replaceFirst("#", actualUser);
-		sql = sql.replaceFirst("#", date); 
+		sql = sql.replaceFirst("#", Util.fechaInicial);
+		sql = sql.replaceFirst("#", Util.fechaFinal);
 		sql = sql.replaceFirst("#", String.valueOf(random));
 		
 		
@@ -562,11 +579,19 @@ public class DBManagerDAO extends JDBCResourceManager {
 			
 			if(r.getM().getInv().getComp() != null && r.getM().getInv().getComp().size()>0){
 				for(InviteComponentWithGroupInfo inv : r.getM().getInv().getComp()){
+					LogInfo.T("validando desc:: "+inv.getFr());
+					if(inv.getFr() != null && inv.getFr().contains("...")){
+						updateDesc(inv.getDesc(), idMeet);
+					}
+					
+					
 					for(CalendarAttendeeWithGroupInfo cai: inv.getAt()){
 						PreparedStatement stMail = conn.prepareStatement(sql);
 						stMail.setString(1 ,  cai.getA() );  // email de cada invitado
 						ResultSet rs = stMail.executeQuery();
 						if(rs.next()){
+							
+							
 							String idUserZimbra = rs.getString(1);
 							
 							String req = "0";
@@ -1203,12 +1228,13 @@ public class DBManagerDAO extends JDBCResourceManager {
 		}
 	}
 
-	public boolean updateMeet(CreateAppointmentResponse appResp, String idSugar)  {
+	public boolean updateMeet(String idZimbra, String idSugar)  {
 		boolean resp = false;
 
 		String sql = "UPDATE meetings SET type = '"+NotaZimbra.TYPE+"', "
 			+ "external_id = ?, "
-			+ "status = 'Held' "
+			+ "status = 'Held', " 
+			+ "deleted = '0' "
 			+ "WHERE id= ? ";
 		
 		Connection conn = null;
@@ -1218,7 +1244,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 			conn.setAutoCommit( true );
 			st = conn.prepareStatement(sql);
 			
-			st.setString(1 , appResp.getInvId());
+			st.setString(1 , idZimbra);
 			st.setString(2 , idSugar);
 			st.executeUpdate();
 		
@@ -1230,7 +1256,34 @@ public class DBManagerDAO extends JDBCResourceManager {
 			
 			return resp;
 	}
-
+	
+	public boolean updateDesc(String desc, String idSugar)  {
+		boolean resp = false;
+		LogInfo.T("actualizando  desc:: "+idSugar);
+		String sql = "UPDATE meetings SET "
+			+ "description = ? "
+			+ "WHERE id= ? ";
+		
+		Connection conn = null;
+    	PreparedStatement st = null;
+		try{
+			conn = getConnection();
+			//conn.setAutoCommit( false );
+			st = conn.prepareStatement(sql);
+			
+			st.setString(1 , desc);
+			st.setString(2 , idSugar);
+			st.executeUpdate();
+		
+		}catch (Exception e) {
+			LogInfo.E("Excepcion:: ");
+			LogInfo.E(Util.errorToString(e));
+			closeResources();
+		}
+			
+			return resp;
+	}
+	
 	public String getToken(User u) {
 		String sql = "SELECT token_id FROM zimbra_auth WHERE user_id = ? ";
 		String tk = "";

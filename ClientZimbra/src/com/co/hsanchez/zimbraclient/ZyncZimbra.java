@@ -138,15 +138,17 @@ public class ZyncZimbra {
 			CreateAppointmentResponse resp = saveZimbraMeet(meet);
 			//db.deleteTempMeet(idMeet);
 			LogInfo.T("zimbra id : " +resp.getApptId() + " "+ resp.getCalItemId() + " "+ resp.getInvId());
-			db.updateMeet(resp ,  DBManagerDAO.actualMeet);
+			db.updateMeet(resp.getInvId() ,  DBManagerDAO.actualMeet);
 		return null;
 	}
 	
 	private String modifyMeeting(User user, String idMeet) {
+		LogInfo.T("Mopdificando Reunion:: "+idMeet);
 		createConex(null);
 		ModifyAppointmentRequest meet = db.getModifiedMeet(idMeet, user);
 		if(meet != null){
 			ModifyAppointmentResponse resp = saveZimbraMeet(meet);
+			db.updateMeet(resp.getInvId() ,idMeet );
 			LogInfo.T("modificada zimbra id : " +resp.getApptId() + " "+ resp.getCalItemId() + " "+ resp.getInvId());
 		}
 	return null;
