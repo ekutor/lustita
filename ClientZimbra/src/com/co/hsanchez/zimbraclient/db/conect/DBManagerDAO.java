@@ -333,21 +333,21 @@ public class DBManagerDAO extends JDBCResourceManager {
 			
 			st = conn.prepareStatement(sql);
 			st.setString(1,n.getIdZimbra());
-		//	st.setString(1,n.getName());
+
 			
 			ResultSet rs = st.executeQuery();
 			if(rs.next()){
-				LogInfo.T("Reunion ya existe::" + n.getName() );
+				LogInfo.T("Reunion ya existe por idZimbra::" + n.getName());
 				n.setId(rs.getString("id"));
 				return true;
 			}else{
-				sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ?";
+				sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ? and external_id is null";
 				st = conn.prepareStatement(sql);
 				st.setString(1,n.getName());
 				st.setString(2,n.getCreator());
 				rs = st.executeQuery();
 				if(rs.next()){
-					LogInfo.T("Reunion ya existe::" + n.getName() );
+					LogInfo.T("Reunion ya existe por Nombre ::" + n.getName() );
 					n.setId(rs.getString("id"));
 					return true;
 				}
