@@ -22,12 +22,13 @@ public class NotaZimbra
 	private String date_end;
 	private String status;
 	private String type;
-	private String created_by;
+
 	private String assigned_user_id;
 	private String modified_user_id;
 	private String date_entered;
 	private String status_met_det;
 	private int random;
+	private String idZimbraIndividual;
 	
 	
 	public static final String TYPE = "Zimbra";
@@ -54,6 +55,16 @@ public class NotaZimbra
 
 	public void setIdZimbra(String idZimbra) {
 		this.idZimbra = idZimbra;
+	}
+	
+
+	public String getIdZimbraIndividual() {
+		return idZimbraIndividual;
+	}
+
+
+	public void setIdZimbraIndividual(String idZimbraIndividual) {
+		this.idZimbraIndividual = idZimbraIndividual;
 	}
 
 
@@ -162,16 +173,6 @@ public class NotaZimbra
 	}
 
 
-	public String getCreated_by() {
-		return created_by;
-	}
-
-
-	public void setCreated_by(String created_by) {
-		this.created_by = created_by;
-	}
-
-
 	public String getAssigned_user_id() {
 		return assigned_user_id;
 	}
@@ -218,7 +219,7 @@ public class NotaZimbra
 		n.deleted = "0";
 		
 		n.modified_user_id = u.getIdSugar();
-		n.created_by= u.getIdSugar();
+
 		n.type = TYPE;
 		n.status = getStatusZimbra(ap.getPtst());
 		n.status_met_det = getStatusZimbraMeetDet(ap.getPtst());
@@ -226,7 +227,8 @@ public class NotaZimbra
 		
 		UUID uuidRel  = UUID.randomUUID();
 		n.id = ""+uuidRel;
-		n.idZimbra = ap.getInvId();
+		n.idZimbra = ap.getUid().substring(ap.getUid().length()-32);//el id es de 112 digitos
+		n.idZimbraIndividual = ap.getInvId();
 		n.name = ap.getName();
 		n.desc = ap.getFr();
 		n.location = ap.getLoc();
@@ -252,7 +254,7 @@ public class NotaZimbra
 		sb.append("id:" + id );
 		sb.append(" assigned_user_id "+assigned_user_id );
 		sb.append(" modified_user_id "+modified_user_id );
-		sb.append(" created_by "+created_by );
+	
 		sb.append(" type "+type );
 		sb.append(" status "+status);
 		sb.append(" status_met_det "+status_met_det);

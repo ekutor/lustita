@@ -3,6 +3,7 @@ package com.co.hsanchez.zimbraclient;
 import java.io.File;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.net.URISyntaxException;
 import java.security.CodeSource;
 import java.text.ParseException;
@@ -220,5 +221,26 @@ public class Util {
 		}
 		
 		return password;
+	}
+	public static String covertUTF8(String info) {
+		 try {
+			byte[] utf8Bytes = info.getBytes("UTF8");
+			String convert = new String(utf8Bytes, "UTF8");
+			LogInfo.T("convertidos = " + convert);
+			return convert;
+			    
+		} catch (Exception e) {
+			LogInfo.E("Fallo al  convertir a UTF 8 "+ Util.errorToString(e));
+		}
+		return null;
+	}
+	public static String cleanDescZimbra(String desc) {
+		if(desc != null ){
+			int i = desc.indexOf("*~*~*~*~*~*~*~*~*~*");
+			if(i>0){
+				desc =  desc.substring(i);
+			}
+		}
+		return desc;
 	}
 }

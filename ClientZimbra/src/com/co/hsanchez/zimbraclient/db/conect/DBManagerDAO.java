@@ -124,7 +124,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 		LogInfo.T("Guardando Calendario::");
 		List<NotaZimbra> l = new ArrayList<NotaZimbra>();
 		int random = this.getRandom();
-		String created_by = null;
+	
 		
 		if (sr.getHitOrCOrM() != null) {
 			if (!sr.getHitOrCOrM().isEmpty()) {
@@ -132,17 +132,17 @@ public class DBManagerDAO extends JDBCResourceManager {
 				for (Object o : sr.getHitOrCOrM()) {
 					AppointmentHitInfo ap = (AppointmentHitInfo) o;
 					NotaZimbra n = NotaZimbra.conversor(ap, u);
-					
-					n.setCreator(this.getMailId(n.getCreator()));
+					defineCreator(n);
+			
 					n.setRandom(random);
-					created_by = u.getIdSugar();
-					LogInfo.T("Random::" + random  + " id Usuario: "+ created_by);
+			
+					LogInfo.T("Random::" + random  + " id Usuario: "+ u.getIdSugar());
 					LogInfo.T("Reunion recibida::" + n.getName() );
 					LogInfo.T("Reunion recibida::" + n.getIdZimbra());
 					insertMeeting(n);
 					l.add(n);	
 				}
-				deleteMeetings(l,random , created_by); 
+				deleteMeetings(l,random , u.getIdSugar()); 
 			}
 		}
 		return l;
@@ -167,41 +167,59 @@ public class DBManagerDAO extends JDBCResourceManager {
 	    	conn = getConnection();
 			conn.setAutoCommit( false );
 		
-			defineCreator(n);
+			
 			if(meetExists(n)){
 				LogInfo.T("ACTUALIZANDO Reunion::" + n.getName() );
-				sql = "UPDATE `meetings` SET " +
-						"name = ?, " +
-						"description = ?, " +
-						"location = ?, " +
-						"duration_minutes = ?, " +
-						"date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), " +
-						"date_end = STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'), " +
-						"status = ?, " +
-						"type = ?, " +
-						"sequence = ?, " +
-						"creator = ?, " +
-						"assigned_user_id = ?, " +
-						"external_id = ?, " +
-						"deleted = '0' " +
-						"WHERE id = ? ";
-				
-				
-				st = conn.prepareStatement(sql);
-				st.setString(1,n.getName());
-				st.setString(2,n.getDesc());
-				st.setString(3,n.getLocation());
-				st.setString(4,n.getDuration_minutes());
-				st.setString(5,n.getDate_start());
-				st.setString(6,n.getDate_end());
-				st.setString(7,n.getStatus());
-				st.setString(8,n.getType());
-				st.setInt(9,n.getRandom());
-				st.setString(10,n.getCreator());
-				st.setString(11,n.getAssigned_user_id());
-				st.setString(12,n.getIdZimbra());
-				st.setString(13,n.getId());
-				
+				if(n.getCreator().equals(n.getModified_user_id())){//solo debe actualizar la descripcion el creador de la reunion
+					
+					sql = "UPDATE `meetings` SET " +
+							"name = ?, " +
+							"description = ?, " +
+							"location = ?, " +
+							"duration_minutes = ?, " +
+							"date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), " +
+							"date_end = STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'), " +
+							"status = ?, " +
+							"type = ?, " +
+							"sequence = ?, " +
+							"creator = ?, " +
+							"assigned_user_id = ?, " +
+							"external_id = ?, " +
+							"outlook_id = ?, " +
+							"deleted = '0' " +
+							"WHERE id = ? ";
+					
+					
+					st = conn.prepareStatement(sql);
+					st.setString(1,n.getName());
+					st.setString(2,Util.cleanDescZimbra(n.getDesc()));
+					st.setString(3,n.getLocation());
+					st.setString(4,n.getDuration_minutes());
+					st.setString(5,n.getDate_start());
+					st.setString(6,n.getDate_end());
+					st.setString(7,n.getStatus());
+					st.setString(8,n.getType());
+					st.setInt(9,n.getRandom());
+					st.setString(10,n.getCreator());
+					st.setString(11,n.getAssigned_user_id());
+					st.setString(12,n.getIdZimbra());
+					st.setString(13,n.getIdZimbraIndividual());
+					st.setString(14,n.getId());
+				}else{
+					
+					sql = "UPDATE `meetings` SET " +
+							"external_id = ?, " +
+							"modified_user_id = ?, " +
+							"type = ?, " +
+							"deleted = '0' " +
+							"WHERE id = ? ";
+					st = conn.prepareStatement(sql);
+					st.setString(1,n.getIdZimbra());
+					st.setString(2,n.getModified_user_id());
+					st.setString(3,n.getType());
+					st.setString(4,n.getId());
+						
+				}
 				int act = st.executeUpdate();
 				LogInfo.T("UPDATE actualizado 1::" + act );
 				
@@ -226,9 +244,9 @@ public class DBManagerDAO extends JDBCResourceManager {
 				LogInfo.T("INSERTANDO Reunion::" + n.getName() );
 			sql = "INSERT INTO `meetings`(`id`, `external_id`,`name`, `description`, `deleted`, `location`, " +
 					" `creator`, `duration_minutes`, `date_start`, date_end ,`status`, " +
-					"`type` ,created_by, assigned_user_id, modified_user_id, date_entered, sequence ) "+
+					"`type` ,created_by, assigned_user_id, modified_user_id, date_entered, sequence ,outlook_id ) "+
 			          "VALUES ( ?, ?, ?, ?, ?, ?, ?, ?,  STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s')," +
-			          " ? , ? , ? , ?, ?, now() ,?) ";
+			          " ? , ? , ? , ?, ?, now() ,?,?) ";
 
 						
 				st = conn.prepareStatement(sql);
@@ -244,10 +262,11 @@ public class DBManagerDAO extends JDBCResourceManager {
 				st.setString(10,n.getDate_end());
 				st.setString(11,n.getStatus());
 				st.setString(12,n.getType());
-				st.setString(13,n.getCreated_by());
+				st.setString(13,n.getCreator());
 				st.setString(14,n.getAssigned_user_id());
 				st.setString(15,n.getModified_user_id());
 				st.setInt(16,n.getRandom());
+				st.setString(17,n.getIdZimbraIndividual());
 				st.executeUpdate();
 						        
 				insertMettingUser(n , st , conn);
@@ -269,13 +288,18 @@ public class DBManagerDAO extends JDBCResourceManager {
 	 */
 	private void defineCreator(NotaZimbra n) {
 		try{
-			String username = n.getCreator().split("@")[0];
-			n.setCreator(getUserId(username));
+			String idUser = getMailId(n.getCreator());
+			if(idUser == null){
+				String username = n.getCreator().split("@")[0];
+				n.setCreator(getUserId(username));
+			}else{
+				n.setCreator(idUser);
+			}
 		}catch(Exception e ){
 			
 		}
 		if(n.getCreator() == null){
-			n.setCreator(n.getCreated_by());
+			n.setCreator(n.getModified_user_id());
 		}
 		
 	}
@@ -298,7 +322,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 	}
 	private boolean meetExists(NotaZimbra n) {
 		String sql = "SELECT id FROM `meetings` WHERE  `external_id` = ? ";
-		//String sql = "SELECT id FROM `meetings` WHERE  `name` = ? ";
+
 		
 		LogInfo.T("CONSULTANDO Reunion::" + n.getName() + " id_Zimbra "+n.getIdZimbra());
 		Connection conn = null;
@@ -317,8 +341,10 @@ public class DBManagerDAO extends JDBCResourceManager {
 				n.setId(rs.getString("id"));
 				return true;
 			}else{
+				sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ?";
 				st = conn.prepareStatement(sql);
 				st.setString(1,n.getName());
+				st.setString(2,n.getCreator());
 				rs = st.executeQuery();
 				if(rs.next()){
 					LogInfo.T("Reunion ya existe::" + n.getName() );
@@ -581,7 +607,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 				for(InviteComponentWithGroupInfo inv : r.getM().getInv().getComp()){
 					LogInfo.T("validando desc:: "+inv.getFr());
 					if(inv.getFr() != null && inv.getFr().contains("...")){
-						updateDesc(inv.getDesc(), idMeet);
+						updateDesc(inv.getDesc(), idMeet, inv.getName());
 					}
 					
 					
@@ -859,7 +885,8 @@ public class DBManagerDAO extends JDBCResourceManager {
 				
 				MimePartInfo mp = new MimePartInfo();
 				mp.setCt("text/plain");
-				mp.setContent(rs.getString("description"));
+				mp.setContent(Util.covertUTF8(rs.getString("description")));
+				//mp.setContent(rs.getString("description"));
 				m.setMp(mp);
 				
 				m.setL("10");
@@ -885,7 +912,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 	public CancelAppointmentRequest getDeletedMeet(String  idMeet, User user) {
 			
 			LogInfo.T("Obteniendo Reunion zimbra_invitee para eliminacion:: ");
-			String sql = "SELECT zi.*, mt.external_id FROM zimbra_invitee zi , meetings mt " +
+			String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt " +
 					"WHERE mt.id = ?  AND zi.user_id = mt.id";
 			
 			Connection conn = null;
@@ -973,7 +1000,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 					
 					CancelAppointmentRequest apr = new CancelAppointmentRequest();
 					apr.setComp(0);
-					apr.setId(rs.getString("external_id"));
+					apr.setId(rs.getString("outlook_id"));
 					apr.setM(m);
 					
 					return apr;
@@ -997,7 +1024,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 						m.setMp(mp);
 						CancelAppointmentRequest apr = new CancelAppointmentRequest();
 						apr.setComp(0);
-						apr.setId(rs.getString("external_id"));
+						apr.setId(rs.getString("outlook_id"));
 						apr.setM(m);
 						
 						return apr;
@@ -1015,7 +1042,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 	public ModifyAppointmentRequest getModifiedMeet(String  idMeet, User user) {
 		
 		LogInfo.T("Obteniendo Reunion zimbra_invitee para modificacion:: ");
-		String sql = "SELECT zi.*, mt.external_id FROM zimbra_invitee zi , meetings mt " +
+		String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt " +
 				"WHERE zi.id = ?  AND zi.user_id = mt.id";
 		
 		Connection conn = null;
@@ -1194,7 +1221,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 				
 				ModifyAppointmentRequest ar = new ModifyAppointmentRequest();
 				ar.setM(m);
-				ar.setId(rs.getString("external_id"));
+				ar.setId(rs.getString("outlook_id"));
 				LogInfo.T("Bean Reunion Creado:: "+ ar);
 				return ar;
 			}
@@ -1232,7 +1259,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 		boolean resp = false;
 
 		String sql = "UPDATE meetings SET type = '"+NotaZimbra.TYPE+"', "
-			+ "external_id = ?, "
+			+ "outlook_id = ?, "
 			+ "status = 'Held', " 
 			+ "deleted = '0' "
 			+ "WHERE id= ? ";
@@ -1257,10 +1284,11 @@ public class DBManagerDAO extends JDBCResourceManager {
 			return resp;
 	}
 	
-	public boolean updateDesc(String desc, String idSugar)  {
+	public boolean updateDesc(String desc, String idMeetSugar, String name)  {
 		boolean resp = false;
-		LogInfo.T("actualizando  desc:: "+idSugar);
+		LogInfo.T("actualizando  desc:: "+idMeetSugar);
 		String sql = "UPDATE meetings SET "
+			+"name = ?, "
 			+ "description = ? "
 			+ "WHERE id= ? ";
 		
@@ -1270,9 +1298,9 @@ public class DBManagerDAO extends JDBCResourceManager {
 			conn = getConnection();
 			//conn.setAutoCommit( false );
 			st = conn.prepareStatement(sql);
-			
-			st.setString(1 , desc);
-			st.setString(2 , idSugar);
+			st.setString(1 , name);
+			st.setString(2 , desc);
+			st.setString(3 , idMeetSugar);
 			st.executeUpdate();
 		
 		}catch (Exception e) {

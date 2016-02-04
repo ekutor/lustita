@@ -38,6 +38,7 @@ public class ZyncZimbra {
 	private String token;
 	private String urlZimbra = "https://laumail.laumayer.com/service/wsdl/ZimbraService.wsdl";
 	private DBManagerDAO db;
+	private static int cont;
 
 	public ZyncZimbra() {
 		db = new DBManagerDAO();//
@@ -75,7 +76,9 @@ public class ZyncZimbra {
 		
 
 	public String getAuth(User u ) {
-		
+		if(cont >=3){
+			return null;
+		}
 		AuthRequest ar = new AuthRequest();
 		LogInfo.T("getAuth:: ");
 		AccountSelector as = new AccountSelector();
@@ -86,7 +89,7 @@ public class ZyncZimbra {
 		createConex(null);
 		try{
 			
-			//LogInfo.T("Intento :: passsw:"+ar.getPassword());
+			LogInfo.T("Intento :: passsw:"+ar.getPassword());
 			zimbraaccount.AuthResponse resp = port.authRequest(ar);
 			token = resp.getAuthToken();
 			LogInfo.T("Token obtenido:: "+token);
@@ -100,7 +103,7 @@ public class ZyncZimbra {
 			p = Util.convertChars(p);
 			u.setPassword(p);
 			//LogInfo.T("passw:: "+p);
-			//cont++;
+			cont++;
 			getAuth(u);
 			
 		}
@@ -120,7 +123,7 @@ public class ZyncZimbra {
 			List<NotaZimbra> meetsZimbra = db.saveCalendar(sr, u, time);
 			if(meetsZimbra != null && meetsZimbra.size() >0){
 				for(NotaZimbra meet :meetsZimbra ){
-					GetMsgResponse r = getMeetDetailFromZimbra(meet.getIdZimbra());
+					GetMsgResponse r = getMeetDetailFromZimbra(meet.getIdZimbraIndividual());
 					db.saveMeet(r , u, meet.getId());
 				}
 				resp = "Sincronizado";
@@ -135,10 +138,14 @@ public class ZyncZimbra {
 	private String createMeeting(User user, String idMeet) {
 			createConex(null);
 			CreateAppointmentRequest meet = db.getMeet(idMeet, user);
-			CreateAppointmentResponse resp = saveZimbraMeet(meet);
-			//db.deleteTempMeet(idMeet);
-			LogInfo.T("zimbra id : " +resp.getApptId() + " "+ resp.getCalItemId() + " "+ resp.getInvId());
-			db.updateMeet(resp.getInvId() ,  DBManagerDAO.actualMeet);
+			if(meet != null){
+				CreateAppointmentResponse resp = saveZimbraMeet(meet);
+				//db.deleteTempMeet(idMeet);
+				LogInfo.T("zimbra id : " +resp.getApptId() + " "+ resp.getCalItemId() + " "+ resp.getInvId());
+				db.updateMeet(resp.getInvId() ,  DBManagerDAO.actualMeet);
+			}else{
+				LogInfo.T("reunion no encontrada:"+idMeet);
+			}
 		return null;
 	}
 	
