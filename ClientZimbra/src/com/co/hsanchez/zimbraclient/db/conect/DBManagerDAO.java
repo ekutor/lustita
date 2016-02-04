@@ -634,6 +634,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 							LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion meetings_users::" + idMeet );
 							String sqlupd = "UPDATE `meetings_users` SET" +
 											" `accept_status` = ?, "+
+											" `deleted` = 0,"+
 											" `required` = ? "+
 											"WHERE meeting_id = ? AND user_id = ?";
 							st = conn.prepareStatement(sqlupd);
