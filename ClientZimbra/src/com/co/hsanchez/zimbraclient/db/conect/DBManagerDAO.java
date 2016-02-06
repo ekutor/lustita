@@ -171,12 +171,13 @@ public class DBManagerDAO extends JDBCResourceManager {
 			if(meetExists(n)){
 				LogInfo.T("ACTUALIZANDO Reunion::" + n.getName() );
 				if(n.getCreator().equals(n.getModified_user_id())){//solo debe actualizar la descripcion el creador de la reunion
-					
+					LogInfo.T("ES CREADOR" );
 					sql = "UPDATE `meetings` SET " +
 							"name = ?, " +
 							"description = ?, " +
 							"location = ?, " +
 							"duration_minutes = ?, " +
+							"duration_hours = '0', " +
 							"date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), " +
 							"date_end = STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'), " +
 							"status = ?, " +
@@ -186,10 +187,12 @@ public class DBManagerDAO extends JDBCResourceManager {
 							"assigned_user_id = ?, " +
 							"external_id = ?, " +
 							"outlook_id = ?, " +
+							"date_modified = now(), " +
 							"deleted = '0' " +
 							"WHERE id = ? ";
 					
-					
+					LogInfo.T("Fecha Inicial:" + n.getDate_start());
+					LogInfo.T("Fecha Final:" + n.getDate_end());
 					st = conn.prepareStatement(sql);
 					st.setString(1,n.getName());
 					st.setString(2,Util.cleanDescZimbra(n.getDesc()));
@@ -206,11 +209,12 @@ public class DBManagerDAO extends JDBCResourceManager {
 					st.setString(13,n.getIdZimbraIndividual());
 					st.setString(14,n.getId());
 				}else{
-					
+					LogInfo.T("NO ES CREADOR" +n.getModified_user_id() + " "+n.getCreator());
 					sql = "UPDATE `meetings` SET " +
 							"external_id = ?, " +
 							"modified_user_id = ?, " +
 							"type = ?, " +
+							"date_modified = now(), " +
 							"deleted = '0' " +
 							"WHERE id = ? ";
 					st = conn.prepareStatement(sql);
@@ -605,10 +609,11 @@ public class DBManagerDAO extends JDBCResourceManager {
 			
 			if(r.getM().getInv().getComp() != null && r.getM().getInv().getComp().size()>0){
 				for(InviteComponentWithGroupInfo inv : r.getM().getInv().getComp()){
-					LogInfo.T("validando desc:: "+inv.getFr());
+					
 					if(inv.getFr() != null && inv.getFr().contains("...")){
-						updateDesc(inv.getDesc(), idMeet, inv.getName());
+						updateMeetInfo(idMeet , inv);
 					}
+					
 					
 					
 					for(CalendarAttendeeWithGroupInfo cai: inv.getAt()){
@@ -631,7 +636,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 							UUID uuidRel  = UUID.randomUUID();
 							String idRel = ""+uuidRel;
 							
-							LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion meetings_users::" + idMeet );
+							//LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion meetings_users::" + idMeet );
 							String sqlupd = "UPDATE `meetings_users` SET" +
 											" `accept_status` = ?, "+
 											" `deleted` = 0,"+
@@ -639,7 +644,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 											"WHERE meeting_id = ? AND user_id = ?";
 							st = conn.prepareStatement(sqlupd);
 							
-							LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion consulta::" +NotaZimbra.getStatusZimbraMeetDet(cai.getPtst()) + " "+req+" " +sqlupd + " "+ idUserZimbra + " "+ idMeet );
+							//LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion consulta::" +NotaZimbra.getStatusZimbraMeetDet(cai.getPtst()) + " "+req+" " +sqlupd + " "+ idUserZimbra + " "+ idMeet );
 							
 							
 							st.setString(1, NotaZimbra.getStatusZimbraMeetDet(cai.getPtst()) );
@@ -648,7 +653,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 							st.setString(4, idUserZimbra );
 							
 							int cant = st.executeUpdate();
-							LogInfo.T("CANT ::" + cant  );
+							//LogInfo.T("CANT ::" + cant  );
 							
 							if( cant == 0){
 								LogInfo.T("NO actualizo ESTADO  DETALLE Reunion meetings_users::" + idMeet );
@@ -675,6 +680,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 		
 	}
 
+	
 	public String  getMail(String idUser, String module){
 
 		String sql = "SELECT em.email_address FROM  email_addr_bean_rel emrel,email_addresses em "+
@@ -1285,14 +1291,23 @@ public class DBManagerDAO extends JDBCResourceManager {
 			return resp;
 	}
 	
-	public boolean updateDesc(String desc, String idMeetSugar, String name)  {
+	private boolean updateMeetInfo(String idMeetSugar, InviteComponentWithGroupInfo inv) {
+		
+		String name = inv.getName();
+		String desc = inv.getDesc();
+//		DtTimeInfo ds = inv.getS();
+//		DtTimeInfo de = inv.getE();
+//		String startDate = ds.getD();
+//		String endDate = de.getD();
 		boolean resp = false;
-		LogInfo.T("actualizando  desc:: "+idMeetSugar);
+//		LogInfo.T("actualizando ::"+idMeetSugar+" dates :: "+startDate + " "+endDate);
 		String sql = "UPDATE meetings SET "
 			+"name = ?, "
 			+ "description = ? "
+//			+"date_start = STR_TO_DATE( ?,'%Y%m%dT%H%i%s'), " 
+//			+"date_end = STR_TO_DATE(?,'%Y%m%dT%H%i%s') " 
 			+ "WHERE id= ? ";
-		
+		LogInfo.T("actualizando :: "+idMeetSugar);
 		Connection conn = null;
     	PreparedStatement st = null;
 		try{
@@ -1301,6 +1316,8 @@ public class DBManagerDAO extends JDBCResourceManager {
 			st = conn.prepareStatement(sql);
 			st.setString(1 , name);
 			st.setString(2 , desc);
+//			st.setString(3 , startDate);
+//			st.setString(4 , endDate);
 			st.setString(3 , idMeetSugar);
 			st.executeUpdate();
 		

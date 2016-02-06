@@ -89,7 +89,7 @@ public class ZyncZimbra {
 		createConex(null);
 		try{
 			
-			LogInfo.T("Intento :: passsw:"+ar.getPassword());
+			//LogInfo.T("Intento :: passsw:"+ar.getPassword());
 			zimbraaccount.AuthResponse resp = port.authRequest(ar);
 			token = resp.getAuthToken();
 			LogInfo.T("Token obtenido:: "+token);
@@ -270,11 +270,11 @@ public class ZyncZimbra {
 		LogInfo.T("Iniciando Proceso ZyncZimbra");
 		try{
 			if (args != null && args.length > 0) {
-				String arRec= "";
-				for(String a : args){
-					arRec += a+" ";
-				}
-				LogInfo.T("Args Recibidos:: "+ arRec);
+//				String arRec= "";
+//				for(String a : args){
+//					arRec += a+" ";
+//				}
+//				LogInfo.T("Args Recibidos:: "+ arRec);
 				int operacion = Integer.parseInt(args[0]);
 				ZyncZimbra zz = new ZyncZimbra();
 	

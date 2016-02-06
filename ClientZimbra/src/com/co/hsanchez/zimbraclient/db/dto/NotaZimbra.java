@@ -243,7 +243,7 @@ public class NotaZimbra
 
 		n.date_start = Util.calculateHour(ap.getInst().get(0).getS());
 		n.date_end = Util.calculateHour(ap.getInst().get(0).getS() + ap.getDur());
-//		LogInfo.T("Nota Fecha Inic::" + n.date_start );
+		LogInfo.T("Nota Duracion::" + n.duration_minutes );
 //		LogInfo.T("Nota Fecha Fin::" + n.date_end );
 		
 		return n;

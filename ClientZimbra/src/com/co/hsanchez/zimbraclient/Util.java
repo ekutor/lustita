@@ -9,6 +9,7 @@ import java.security.CodeSource;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -81,7 +82,10 @@ public class Util {
 		}else{
 			c.add(Calendar.DATE, -3);
 		}
-		
+		c.set(Calendar.HOUR_OF_DAY, 0);
+		c.set(Calendar.MINUTE, 0);
+		c.set(Calendar.SECOND, 0);
+		c.add(Calendar.DATE, -1);
 		fechaInicial = sd.format(c.getTime());
 		LogInfo.T("Fecha Inicial: "+fechaInicial);
 		return c;
@@ -110,7 +114,9 @@ public class Util {
 		}else{
 			c.add(Calendar.DATE, 13);
 		}
-		
+		c.set(Calendar.HOUR_OF_DAY, 23);
+		c.set(Calendar.MINUTE, 0);
+		c.set(Calendar.SECOND, 0);
 		fechaFinal = sd.format(c.getTime());
 		LogInfo.T("Fecha Final: "+fechaFinal);
 		return c;
@@ -142,6 +148,7 @@ public class Util {
 		c.add(Calendar.HOUR,  5 ); // toca agregarselo porque el sugar esta quitandolas arreglar SUGAR
 		return sf.format(c.getTime());
 	}
+	
 	
 	
 	public static File getParentDirPathClass(){
@@ -243,4 +250,5 @@ public class Util {
 		}
 		return desc;
 	}
+	
 }
