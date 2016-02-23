@@ -137,6 +137,7 @@ public class ZyncZimbra {
 	}
 	private String createMeeting(User user, String idMeet) {
 			createConex(null);
+			LogInfo.T("Creando Reunion:: "+idMeet);
 			CreateAppointmentRequest meet = db.getMeet(idMeet, user);
 			if(meet != null){
 				CreateAppointmentResponse resp = saveZimbraMeet(meet);
@@ -150,7 +151,7 @@ public class ZyncZimbra {
 	}
 	
 	private String modifyMeeting(User user, String idMeet) {
-		LogInfo.T("Mopdificando Reunion:: "+idMeet);
+		LogInfo.T("Modificando Reunion:: "+idMeet);
 		createConex(null);
 		ModifyAppointmentRequest meet = db.getModifiedMeet(idMeet, user);
 		if(meet != null){

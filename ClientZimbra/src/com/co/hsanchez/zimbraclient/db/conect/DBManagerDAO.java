@@ -328,7 +328,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 		String sql = "SELECT id FROM `meetings` WHERE  `external_id` = ? ";
 
 		
-		LogInfo.T("CONSULTANDO Reunion::" + n.getName() + " id_Zimbra "+n.getIdZimbra());
+		LogInfo.T("CONSULTANDO Reunion::" + n.getName() + " id_Zimbra "+n.getIdZimbra()+ " id indiv ="+n.getIdZimbraIndividual());
 		Connection conn = null;
     	PreparedStatement st = null;
 		try{
@@ -345,15 +345,28 @@ public class DBManagerDAO extends JDBCResourceManager {
 				n.setId(rs.getString("id"));
 				return true;
 			}else{
-				sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ? and external_id is null";
+				sql = "SELECT id FROM `meetings` WHERE `outlook_id` = ? and created_by = ? ";
 				st = conn.prepareStatement(sql);
-				st.setString(1,n.getName());
+				st.setString(1,n.getIdZimbraIndividual());
 				st.setString(2,n.getCreator());
 				rs = st.executeQuery();
 				if(rs.next()){
-					LogInfo.T("Reunion ya existe por Nombre ::" + n.getName() );
+					LogInfo.T("Reunion ya existe por id Zimbra Individual ::" + n.getName() );
 					n.setId(rs.getString("id"));
 					return true;
+				}else{
+				
+					sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ? " +
+							"and (external_id ='' or external_id is null) ";
+					st = conn.prepareStatement(sql);
+					st.setString(1,n.getName());
+					st.setString(2,n.getCreator());
+					rs = st.executeQuery();
+					if(rs.next()){
+						LogInfo.T("Reunion ya existe por Nombre ::" + n.getName() );
+						n.setId(rs.getString("id"));
+						return true;
+					}
 				}
 			}
 	        
