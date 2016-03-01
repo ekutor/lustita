@@ -1,11 +1,14 @@
 package com.co.hsanchez.zimbraclient.db.dto;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 import com.co.hsanchez.zimbraclient.Util;
 import com.co.hsanchez.zimbraclient.log.LogInfo;
 
 import zimbramail.AppointmentHitInfo;
+import zimbramail.InstanceDataInfo;
 
 
 public class NotaZimbra 
@@ -18,11 +21,11 @@ public class NotaZimbra
 	private String location;
 	private String creator;
 	private String duration_minutes;
-	private String date_start;
-	private String date_end;
+	private List<FechasReunion> fechas;
+	private FechasReunion fechaActual;
 	private String status;
 	private String type;
-
+	private boolean periodica;
 	private String assigned_user_id;
 	private String modified_user_id;
 	private String date_entered;
@@ -34,8 +37,18 @@ public class NotaZimbra
 	public static final String TYPE = "Zimbra";
 
     public NotaZimbra() {
-    
+    	fechas = new ArrayList<FechasReunion>();
     }
+
+
+	public boolean isPeriodica() {
+		return periodica;
+	}
+
+
+	public void setPeriodica(boolean periodica) {
+		this.periodica = periodica;
+	}
 
 
 	public String getId() {
@@ -70,6 +83,16 @@ public class NotaZimbra
 
 	public String getName() {
 		return name;
+	}
+
+
+	public FechasReunion getFechaActual() {
+		return fechaActual;
+	}
+
+
+	public void setFechaActual(FechasReunion fechaActual) {
+		this.fechaActual = fechaActual;
 	}
 
 
@@ -133,25 +156,18 @@ public class NotaZimbra
 	}
 
 
-	public String getDate_start() {
-		return date_start;
+	public List<FechasReunion> getFechas() {
+		return fechas;
 	}
 
 
-	public void setDate_start(String date_start) {
-		this.date_start = date_start;
+	public void setFechas(List<FechasReunion> fechas) {
+		this.fechas = fechas;
 	}
 
-
-	public String getDate_end() {
-		return date_end;
+	public void addFecha(FechasReunion fecha) {
+		this.fechas.add(fecha);
 	}
-
-
-	public void setDate_end(String date_end) {
-		this.date_end = date_end;
-	}
-
 
 	public String getStatus() {
 		return status;
@@ -245,9 +261,14 @@ public class NotaZimbra
 		long duration= ap.getDur() / 60000;
 		
 		n.duration_minutes =  String.valueOf(duration);
-
-		n.date_start = Util.calculateHour(ap.getInst().get(0).getS());
-		n.date_end = Util.calculateHour(ap.getInst().get(0).getS() + ap.getDur());
+		
+		for(InstanceDataInfo fechaZimbra : ap.getInst()){
+			String ds = Util.calculateHour(fechaZimbra.getS());
+			String de = Util.calculateHour(fechaZimbra.getS() + ap.getDur());
+			FechasReunion fr = new FechasReunion(ds,de);
+			n.fechas.add(fr);
+		}
+		n.periodica = n.fechas.size() > 1 ? true:false;
 		LogInfo.T("Nota Duracion::" + n.duration_minutes );
 //		LogInfo.T("Nota Fecha Fin::" + n.date_end );
 		
@@ -270,8 +291,11 @@ public class NotaZimbra
 		sb.append("location "+location);
 		sb.append("creator "+creator);
 		sb.append("duration_minutes "+duration_minutes);
-		sb.append("date_start "+date_start);
-		sb.append("date_end "+date_end);
+		for( FechasReunion f : fechas){
+			sb.append("date_start "+f.getDate_start());
+			sb.append("date_end "+f.getDate_end());
+		}
+
 		sb.append("deleted:" + deleted);
 	
 		return sb.toString();
