@@ -232,9 +232,10 @@ public class DBManagerDAO extends JDBCResourceManager {
 						"WHERE user_id = ? "+
 					"AND meeting_id = ?";
 				st = conn.prepareStatement(sql2);
-				
+				//Actualiza la relacion con el usuario sincronizador
 				LogInfo.T("UPDATE accept_status::" + n.getStatus_met_det() + "  asigned " +n.getCreator()+ " " +n.getId() );
 				st.setString(1,n.getStatus_met_det());
+				//st.setString(2,n.getModified_user_id());
 				st.setString(2,n.getCreator());
 				st.setString(3,n.getId());
 				
@@ -607,17 +608,17 @@ public class DBManagerDAO extends JDBCResourceManager {
 	public boolean saveMeet(GetMsgResponse r , User u, String idMeet) {
 		boolean resp = false;
 
-		String sql = "SELECT u.id FROM `email_addresses` eadd, `email_addr_bean_rel` eaddbean,`users` u "
-			+ "WHERE eaddbean.email_address_id = eadd.id "
-			+ "AND eaddbean.`bean_module` = 'Users' "
-			+ "AND eaddbean.bean_id = u.id "
-			+ "AND eadd.email_address = ? AND u.deleted = '0'";
-		
+	
+		String sqlupd = "UPDATE `meetings_users` SET" +
+				" `accept_status` = ?, "+
+				" `deleted` = 0,"+
+				" `required` = ? "+
+				"WHERE meeting_id = ? AND user_id = ?";
 		Connection conn = null;
     	PreparedStatement st = null;
 		try{
 			conn = getConnection();
-			conn.setAutoCommit( false );
+			conn.setAutoCommit( true );
 		
 			
 			if(r.getM().getInv().getComp() != null && r.getM().getInv().getComp().size()>0){
@@ -627,17 +628,21 @@ public class DBManagerDAO extends JDBCResourceManager {
 						updateMeetInfo(idMeet , inv);
 					}
 					
-					
-					
+					boolean encontrado = false;
+					String ultimo_estado = "";
 					for(CalendarAttendeeWithGroupInfo cai: inv.getAt()){
-						PreparedStatement stMail = conn.prepareStatement(sql);
-						stMail.setString(1 ,  cai.getA() );  // email de cada invitado
-						ResultSet rs = stMail.executeQuery();
-						if(rs.next()){
-							
-							
-							String idUserZimbra = rs.getString(1);
-							
+						
+						String idUserZimbra = this.getMailId( cai.getA());  // email de cada invitado
+						if(idUserZimbra == null){
+							String username = cai.getA().split("@")[0];
+							idUserZimbra = getUserId(username);
+						}
+						if(idUserZimbra != null){
+							if(idUserZimbra.equals(u.getIdSugar())){
+								encontrado = true;
+								LogInfo.T(" Usuario Actual ENCONTRADO  se actualizara el detalle" );
+								
+							}
 							String req = "0";
 							try{
 								if(cai.getRole().equals("REQ")){
@@ -646,40 +651,21 @@ public class DBManagerDAO extends JDBCResourceManager {
 							}catch(java.lang.NullPointerException ne){
 								
 							}
-							UUID uuidRel  = UUID.randomUUID();
-							String idRel = ""+uuidRel;
+							
 							
 							//LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion meetings_users::" + idMeet );
-							String sqlupd = "UPDATE `meetings_users` SET" +
-											" `accept_status` = ?, "+
-											" `deleted` = 0,"+
-											" `required` = ? "+
-											"WHERE meeting_id = ? AND user_id = ?";
-							st = conn.prepareStatement(sqlupd);
+							ultimo_estado = NotaZimbra.getStatusZimbraMeetDet(cai.getPtst());
+							this.updateMeetingUser(sqlupd, conn, ultimo_estado, req, idMeet, idUserZimbra);
 							
-							//LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion consulta::" +NotaZimbra.getStatusZimbraMeetDet(cai.getPtst()) + " "+req+" " +sqlupd + " "+ idUserZimbra + " "+ idMeet );
-							
-							
-							st.setString(1, NotaZimbra.getStatusZimbraMeetDet(cai.getPtst()) );
-							st.setString(2, req );
-							st.setString(3, idMeet );
-							st.setString(4, idUserZimbra );
-							
-							int cant = st.executeUpdate();
-							//LogInfo.T("CANT ::" + cant  );
-							
-							if( cant == 0){
-								LogInfo.T("NO actualizo ESTADO  DETALLE Reunion meetings_users::" + idMeet );
-								NotaZimbra n = new NotaZimbra();
-								n.setId(idMeet);
-								n.setCreator(idUserZimbra);
-								n.setStatus_met_det(NotaZimbra.getStatusZimbraMeetDet(cai.getPtst()) );
-																
-								insertMettingUser(n , st , conn);
-							}
+						}else{
+							LogInfo.T("Usuario No existe en Sugar ::" + inv.getAt() );
 						}
 					}
-					conn.commit();
+					if(!encontrado){
+						this.updateMeetingUser(sqlupd, conn, ultimo_estado, "1", idMeet, u.getIdSugar());
+					}
+					
+					//conn.commit();
 				}
 			}
 
@@ -694,6 +680,31 @@ public class DBManagerDAO extends JDBCResourceManager {
 	}
 
 	
+	private void updateMeetingUser(String sqlupd, Connection conn, String estadoReunionZimbra, 
+			String req, String idMeet, String idUserSugar ) throws SQLException {
+		PreparedStatement st = conn.prepareStatement(sqlupd);
+		
+		LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion consulta::" +estadoReunionZimbra + " "+req+" "+ idUserSugar + " "+ idMeet );
+		
+		
+		st.setString(1, estadoReunionZimbra );
+		st.setString(2, req );
+		st.setString(3, idMeet );
+		st.setString(4, idUserSugar );
+		
+		int cant = st.executeUpdate();
+		LogInfo.T("CANT ::" + cant  );
+		
+		if( cant == 0){
+			LogInfo.T("NO actualizo ESTADO  DETALLE Reunion meetings_users::" + idMeet );
+			NotaZimbra n = new NotaZimbra();
+			n.setId(idMeet);
+			n.setCreator(idUserSugar);
+			n.setStatus_met_det( estadoReunionZimbra );					
+			insertMettingUser(n , st , conn);
+		}
+		
+	}
 	public String  getMail(String idUser, String module){
 
 		String sql = "SELECT em.email_address FROM  email_addr_bean_rel emrel,email_addresses em "+

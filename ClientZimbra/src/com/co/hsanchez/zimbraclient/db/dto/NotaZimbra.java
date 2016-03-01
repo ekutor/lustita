@@ -227,7 +227,12 @@ public class NotaZimbra
 		
 		UUID uuidRel  = UUID.randomUUID();
 		n.id = ""+uuidRel;
-		n.idZimbra = ap.getUid().substring(ap.getUid().length()-32);//el id es de 112 digitos
+		if(ap.getUid().length() >= 32){
+			n.idZimbra = ap.getUid().substring(ap.getUid().length()-32);//el id es de 112 digitos
+		}else{
+			n.idZimbra = ap.getUid();
+		}
+		
 		n.idZimbraIndividual = ap.getInvId();
 		n.name = ap.getName();
 		n.desc = ap.getFr();
