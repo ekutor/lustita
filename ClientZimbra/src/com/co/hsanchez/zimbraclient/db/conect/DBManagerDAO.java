@@ -33,26 +33,32 @@ import zimbramail.SearchResponse;
 
 import com.co.hsanchez.zimbraclient.Util;
 import com.co.hsanchez.zimbraclient.Util.DateType;
+import com.co.hsanchez.zimbraclient.db.dto.FechasReunion;
 import com.co.hsanchez.zimbraclient.db.dto.NotaZimbra;
 import com.co.hsanchez.zimbraclient.db.dto.User;
 import com.co.hsanchez.zimbraclient.log.LogInfo;
 
 public class DBManagerDAO extends JDBCResourceManager {
+	private boolean periodic;
+	private String createdBy;
+	private String location;
+	private String description;
+	private String name_invite;
 
 	public DBManagerDAO() {
 		super();
 	}
+
 	public static String actualMeet;
-	
-	
+
 	public String getPassW(User u) {
-		
+
 		Connection conn = null;
 		PreparedStatement st = null;
 
 		String sql = "SELECT ps FROM zimbra_auth WHERE user_id = ?";
 		String res = "";
-		
+
 		try {
 			conn = getConnection();
 			st = conn.prepareStatement(sql);
@@ -60,13 +66,14 @@ public class DBManagerDAO extends JDBCResourceManager {
 			st.setString(1, u.getIdSugar());
 			ResultSet rs = st.executeQuery();
 			if (rs.next()) {
-				res =  rs.getString("ps");
-//				sql = "UPDATE zimbra_auth SET ps = 'forget' WHERE user_id = ?";
-//				st = conn.prepareStatement(sql);
-//				st.setString(1, u.getIdSugar());
-//				st.executeUpdate();
+				res = rs.getString("ps");
+				// sql =
+				// "UPDATE zimbra_auth SET ps = 'forget' WHERE user_id = ?";
+				// st = conn.prepareStatement(sql);
+				// st.setString(1, u.getIdSugar());
+				// st.executeUpdate();
 			}
-			
+
 			return res;
 		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
@@ -75,8 +82,9 @@ public class DBManagerDAO extends JDBCResourceManager {
 		}
 		return null;
 	}
+
 	public void saveToken(User u) {
-		if(u.getToken() == null){
+		if (u.getToken() == null) {
 			return;
 		}
 		Connection conn = null;
@@ -104,18 +112,20 @@ public class DBManagerDAO extends JDBCResourceManager {
 				st.setString(2, u.getIdSugar());
 				st.setString(3, u.getUserName());
 			}
-//			System.out.println(st.toString());
+			// System.out.println(st.toString());
 			int resp = st.executeUpdate();
-			
+
 		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
 	}
+
 	/**
-	 * Guarda  las citas de zimbra en Sugar
-	 * @param time 
+	 * Guarda las citas de zimbra en Sugar
+	 * 
+	 * @param time
 	 * @param SearchResponse
 	 * @param user
 	 * @return
@@ -124,25 +134,28 @@ public class DBManagerDAO extends JDBCResourceManager {
 		LogInfo.T("Guardando Calendario::");
 		List<NotaZimbra> l = new ArrayList<NotaZimbra>();
 		int random = this.getRandom();
-	
-		
+
 		if (sr.getHitOrCOrM() != null) {
 			if (!sr.getHitOrCOrM().isEmpty()) {
-			
+
 				for (Object o : sr.getHitOrCOrM()) {
 					AppointmentHitInfo ap = (AppointmentHitInfo) o;
 					NotaZimbra n = NotaZimbra.conversor(ap, u);
 					defineCreator(n);
-			
+
 					n.setRandom(random);
-			
-					LogInfo.T("Random::" + random  + " id Usuario: "+ u.getIdSugar());
-					LogInfo.T("Reunion recibida::" + n.getName() );
+
+					LogInfo.T("Random::" + random + " id Usuario: "
+							+ u.getIdSugar());
+					LogInfo.T("Reunion recibida::" + n.getName());
 					LogInfo.T("Reunion recibida::" + n.getIdZimbra());
-					insertMeeting(n);
-					l.add(n);	
+					for (FechasReunion fecha : n.getFechas()) {
+						n.setFechaActual(fecha);
+						insertMeeting(n);
+						l.add(n);
+					}
 				}
-				deleteMeetings(l,random , u.getIdSugar()); 
+				deleteMeetings(l, random, u.getIdSugar());
 			}
 		}
 		return l;
@@ -152,235 +165,302 @@ public class DBManagerDAO extends JDBCResourceManager {
 		Random r = new Random();
 		return r.nextInt(10000);
 	}
+
 	/**
 	 * Inserta la reunion principal
+	 * 
 	 * @param n
 	 * @return
 	 */
-	private boolean insertMeeting(NotaZimbra n)  {
+	private boolean insertMeeting(NotaZimbra n) {
 		boolean resp = false;
 		String sql = "";
-		LogInfo.T("Guardando Reunion::" + n.getName() );
-		try{
+		LogInfo.T("Guardando Reunion::" + n.getName());
+		try {
 			Connection conn = null;
-	    	PreparedStatement st = null;
-	    	conn = getConnection();
-			conn.setAutoCommit( false );
-		
-			
-			if(meetExists(n)){
-				LogInfo.T("ACTUALIZANDO Reunion::" + n.getName() );
-				if(n.getCreator().equals(n.getModified_user_id())){//solo debe actualizar la descripcion el creador de la reunion
-					LogInfo.T("ES CREADOR" );
-					sql = "UPDATE `meetings` SET " +
-							"name = ?, " +
-							"description = ?, " +
-							"location = ?, " +
-							"duration_minutes = ?, " +
-							"duration_hours = '0', " +
-							"date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), " +
-							"date_end = STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'), " +
-							"status = ?, " +
-							"type = ?, " +
-							"sequence = ?, " +
-							"creator = ?, " +
-							"assigned_user_id = ?, " +
-							"external_id = ?, " +
-							"outlook_id = ?, " +
-							"date_modified = now(), " +
-							"deleted = '0' " +
-							"WHERE id = ? ";
-					
-					LogInfo.T("Fecha Inicial:" + n.getDate_start());
-					LogInfo.T("Fecha Final:" + n.getDate_end());
+			PreparedStatement st = null;
+			conn = getConnection();
+			conn.setAutoCommit(false);
+
+			if (meetExists(n)) {
+				LogInfo.T("ACTUALIZANDO Reunion::" + n.getName());
+				if (n.getCreator().equals(n.getModified_user_id())) {// solo
+																		// debe
+																		// actualizar
+																		// la
+																		// descripcion
+																		// el
+																		// creador
+																		// de la
+																		// reunion
+					LogInfo.T("ES CREADOR");
+					sql = "UPDATE `meetings` SET "
+							+ "name = ?, "
+							+ "description = ?, "
+							+ "location = ?, "
+							+ "duration_minutes = ?, "
+							+ "duration_hours = '0', "
+							+ "date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), "
+							+ "date_end = STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'), "
+							+ "status = ?, " + "type = ?, " + "sequence = ?, "
+							+ "creator = ?, " + "assigned_user_id = ?, "
+							+ "external_id = ?, " + "outlook_id = ?, "
+							+ "date_modified = now(), " + "deleted = '0' "
+							+ "WHERE id = ? ";
+
+					LogInfo.T("Fecha Inicial:"
+							+ n.getFechaActual().getDate_start());
+					LogInfo.T("Fecha Final:" + n.getFechaActual().getDate_end());
 					st = conn.prepareStatement(sql);
-					st.setString(1,n.getName());
-					st.setString(2,Util.cleanDescZimbra(n.getDesc()));
-					st.setString(3,n.getLocation());
-					st.setString(4,n.getDuration_minutes());
-					st.setString(5,n.getDate_start());
-					st.setString(6,n.getDate_end());
-					st.setString(7,n.getStatus());
-					st.setString(8,n.getType());
-					st.setInt(9,n.getRandom());
-					st.setString(10,n.getCreator());
-					st.setString(11,n.getAssigned_user_id());
-					st.setString(12,n.getIdZimbra());
-					st.setString(13,n.getIdZimbraIndividual());
-					st.setString(14,n.getId());
-				}else{
-					LogInfo.T("NO ES CREADOR" +n.getModified_user_id() + " "+n.getCreator());
-					sql = "UPDATE `meetings` SET " +
-							"external_id = ?, " +
-							"modified_user_id = ?, " +
-							"type = ?, " +
-							"date_modified = now(), " +
-							"deleted = '0' " +
-							"WHERE id = ? ";
+					st.setString(1, n.getName());
+					st.setString(2, Util.cleanDescZimbra(n.getDesc()));
+					st.setString(3, n.getLocation());
+					st.setString(4, n.getDuration_minutes());
+					st.setString(5, n.getFechaActual().getDate_start());
+					st.setString(6, n.getFechaActual().getDate_end());
+					st.setString(7, n.getStatus());
+					st.setString(8, n.getType());
+					st.setInt(9, n.getRandom());
+					st.setString(10, n.getCreator());
+					st.setString(11, n.getAssigned_user_id());
+					st.setString(12, n.getIdZimbra());
+					st.setString(13, n.getIdZimbraIndividual());
+					st.setString(14, n.getId());
+				} else {
+					LogInfo.T("NO ES CREADOR" + n.getModified_user_id() + " "
+							+ n.getCreator());
+					sql = "UPDATE `meetings` SET " + "external_id = ?, "
+							+ "modified_user_id = ?, " + "type = ?, "
+							+ "date_modified = now(), " + "deleted = '0' "
+							+ "WHERE id = ? ";
 					st = conn.prepareStatement(sql);
-					st.setString(1,n.getIdZimbra());
-					st.setString(2,n.getModified_user_id());
-					st.setString(3,n.getType());
-					st.setString(4,n.getId());
-						
+					st.setString(1, n.getIdZimbra());
+					st.setString(2, n.getModified_user_id());
+					st.setString(3, n.getType());
+					st.setString(4, n.getId());
+
 				}
 				int act = st.executeUpdate();
-				LogInfo.T("UPDATE actualizado 1::" + act );
-				
-				String sql2 = "UPDATE `meetings_users` SET" +
-						" `accept_status` = ?, deleted = '0' " +
-						"WHERE user_id = ? "+
-					"AND meeting_id = ?";
-				st = conn.prepareStatement(sql2);
-				//Actualiza la relacion con el usuario sincronizador
-				LogInfo.T("UPDATE accept_status::" + n.getStatus_met_det() + "  asigned " +n.getCreator()+ " " +n.getId() );
-				st.setString(1,n.getStatus_met_det());
-				//st.setString(2,n.getModified_user_id());
-				st.setString(2,n.getCreator());
-				st.setString(3,n.getId());
-				
-				act = st.executeUpdate();
-				LogInfo.T("UPDATE actualizado ::" + act );
-				if( act == 0){
-					insertMettingUser(n , st , conn);
-				}
-				
-			}else{
-				LogInfo.T("INSERTANDO Reunion::" + n.getName() );
-			sql = "INSERT INTO `meetings`(`id`, `external_id`,`name`, `description`, `deleted`, `location`, " +
-					" `creator`, `duration_minutes`, `date_start`, date_end ,`status`, " +
-					"`type` ,created_by, assigned_user_id, modified_user_id, date_entered, sequence ,outlook_id ) "+
-			          "VALUES ( ?, ?, ?, ?, ?, ?, ?, ?,  STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s')," +
-			          " ? , ? , ? , ?, ?, now() ,?,?) ";
+				LogInfo.T("UPDATE actualizado 1::" + act);
 
-						
+				String sql2 = "UPDATE `meetings_users` SET"
+						+ " `accept_status` = ?, deleted = '0' "
+						+ "WHERE user_id = ? " + "AND meeting_id = ?";
+				st = conn.prepareStatement(sql2);
+				// Actualiza la relacion con el usuario sincronizador
+				LogInfo.T("UPDATE accept_status::" + n.getStatus_met_det()
+						+ "  asigned " + n.getCreator() + " " + n.getId());
+				st.setString(1, n.getStatus_met_det());
+				// st.setString(2,n.getModified_user_id());
+				st.setString(2, n.getCreator());
+				st.setString(3, n.getId());
+
+				act = st.executeUpdate();
+				LogInfo.T("UPDATE actualizado ::" + act);
+				if (act == 0) {
+					insertMettingUser(n, st, conn);
+				}
+
+			} else {
+				LogInfo.T("INSERTANDO Reunion::" + n.getName());
+				sql = "INSERT INTO `meetings`(`id`, `external_id`,`name`, `description`, `deleted`, `location`, "
+						+ " `creator`, `duration_minutes`, `date_start`, date_end ,`status`, "
+						+ "`type` ,created_by, assigned_user_id, modified_user_id, date_entered, sequence ,outlook_id ) "
+						+ "VALUES ( ?, ?, ?, ?, ?, ?, ?, ?,  STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'),"
+						+ " ? , ? , ? , ?, ?, now() ,?,?) ";
+
 				st = conn.prepareStatement(sql);
-				st.setString(1,n.getId());
-				st.setString(2,n.getIdZimbra());
-				st.setString(3,n.getName());
-				st.setString(4,n.getDesc());
-				st.setString(5,n.getDeleted());
-				st.setString(6,n.getLocation());
-				st.setString(7,n.getCreator());
-				st.setString(8,n.getDuration_minutes());
-				st.setString(9,n.getDate_start());
-				st.setString(10,n.getDate_end());
-				st.setString(11,n.getStatus());
-				st.setString(12,n.getType());
-				st.setString(13,n.getCreator());
-				st.setString(14,n.getAssigned_user_id());
-				st.setString(15,n.getModified_user_id());
-				st.setInt(16,n.getRandom());
-				st.setString(17,n.getIdZimbraIndividual());
+				st.setString(1, n.getId());
+				st.setString(2, n.getIdZimbra());
+				st.setString(3, n.getName());
+				st.setString(4, n.getDesc());
+				st.setString(5, n.getDeleted());
+				st.setString(6, n.getLocation());
+				st.setString(7, n.getCreator());
+				st.setString(8, n.getDuration_minutes());
+				st.setString(9, n.getFechaActual().getDate_start());
+				st.setString(10, n.getFechaActual().getDate_end());
+				st.setString(11, n.getStatus());
+				st.setString(12, n.getType());
+				st.setString(13, n.getCreator());
+				st.setString(14, n.getAssigned_user_id());
+				st.setString(15, n.getModified_user_id());
+				st.setInt(16, n.getRandom());
+				st.setString(17, n.getIdZimbraIndividual());
 				st.executeUpdate();
-						        
-				insertMettingUser(n , st , conn);
+
+				insertMettingUser(n, st, conn);
 			}
-			
+
 			conn.commit();
-			
-		}catch (Exception e) {
+
+		} catch (Exception e) {
 			closeResources();
-			LogInfo.E("Excepcion:: Guardando Reunion : "+n.getName());
+			LogInfo.E("Excepcion:: Guardando Reunion : " + n.getName());
 			LogInfo.E(Util.errorToString(e));
 		}
-			return resp;
-		}
+		return resp;
+	}
 
 	/**
-	 * metodo para ajustar los creadores de las citas porque zimbra puede devolver un correo que no es el correcto en sugar 
+	 * metodo para ajustar los creadores de las citas porque zimbra puede
+	 * devolver un correo que no es el correcto en sugar
+	 * 
 	 * @param n
 	 */
 	private void defineCreator(NotaZimbra n) {
-		try{
+		try {
 			String idUser = getMailId(n.getCreator());
-			if(idUser == null){
+			if (idUser == null) {
 				String username = n.getCreator().split("@")[0];
 				n.setCreator(getUserId(username));
-			}else{
+			} else {
 				n.setCreator(idUser);
 			}
-		}catch(Exception e ){
-			
+		} catch (Exception e) {
+
 		}
-		if(n.getCreator() == null){
+		if (n.getCreator() == null) {
 			n.setCreator(n.getModified_user_id());
 		}
-		
+
 	}
-	private void insertMettingUser(NotaZimbra n, PreparedStatement st , Connection conn) throws SQLException {
-		LogInfo.T("insertandoMeeting User::" + n.getName() );
-		
-//		
-			String sql = "INSERT INTO `meetings_users`( `id`, `meeting_id`, `user_id`, `required`, `accept_status`,  `date_modified`, `deleted` ) "+
-						"VALUES ( ?,?,?, '1', ?,now() , 0 ) ";
-			UUID uuidRel  = UUID.randomUUID();
-			LogInfo.T("insertandoMeeting ::" + uuidRel + " "+n.getId()+ " "+ n.getCreator()+ " "+n.getStatus_met_det());
-					st = conn.prepareStatement(sql);
-					st.setString(1,""+uuidRel); 
-					st.setString(2,n.getId());
-					st.setString(3,n.getCreator());
-					st.setString(4,n.getStatus_met_det());
-					
-					st.executeUpdate();
-//			
+
+	private void insertMettingUser(NotaZimbra n, PreparedStatement st,
+			Connection conn) throws SQLException {
+		LogInfo.T("insertandoMeeting User::" + n.getName());
+
+		//
+		String sql = "INSERT INTO `meetings_users`( `id`, `meeting_id`, `user_id`, `required`, `accept_status`,  `date_modified`, `deleted` ) "
+				+ "VALUES ( ?,?,?, '1', ?,now() , 0 ) ";
+		UUID uuidRel = UUID.randomUUID();
+		LogInfo.T("insertandoMeeting ::" + uuidRel + " " + n.getId() + " "
+				+ n.getCreator() + " " + n.getStatus_met_det());
+		st = conn.prepareStatement(sql);
+		st.setString(1, "" + uuidRel);
+		st.setString(2, n.getId());
+		st.setString(3, n.getCreator());
+		st.setString(4, n.getStatus_met_det());
+
+		st.executeUpdate();
+		//
 	}
+
 	private boolean meetExists(NotaZimbra n) {
-		String sql = "SELECT id FROM `meetings` WHERE  `external_id` = ? ";
+		if (n.isPeriodica()) {
+			return meetPeriodicExists(n);
+		}
+		String sql = "SELECT id FROM `meetings` WHERE `external_id` = ? ";
 
-		
-		LogInfo.T("CONSULTANDO Reunion::" + n.getName() + " id_Zimbra "+n.getIdZimbra()+ " id indiv ="+n.getIdZimbraIndividual());
+		LogInfo.T("CONSULTANDO Reunion::" + n.getName() + " external_id "
+				+ n.getIdZimbra() + " id indiv =" + n.getIdZimbraIndividual());
 		Connection conn = null;
-    	PreparedStatement st = null;
-		try{
+		PreparedStatement st = null;
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( false );
-			
-			st = conn.prepareStatement(sql);
-			st.setString(1,n.getIdZimbra());
+			conn.setAutoCommit(false);
 
-			
+			st = conn.prepareStatement(sql);
+			st.setString(1, n.getIdZimbra());
+
 			ResultSet rs = st.executeQuery();
-			if(rs.next()){
+			if (rs.next()) {
 				LogInfo.T("Reunion ya existe por idZimbra::" + n.getName());
 				n.setId(rs.getString("id"));
 				return true;
-			}else{
-				sql = "SELECT id FROM `meetings` WHERE `outlook_id` = ? and created_by = ? ";
-				st = conn.prepareStatement(sql);
-				st.setString(1,n.getIdZimbraIndividual());
-				st.setString(2,n.getCreator());
-				rs = st.executeQuery();
-				if(rs.next()){
-					LogInfo.T("Reunion ya existe por id Zimbra Individual ::" + n.getName() );
-					n.setId(rs.getString("id"));
-					return true;
-				}else{
-				
-					sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ? " +
-							"and (external_id ='' or external_id is null) ";
-					st = conn.prepareStatement(sql);
-					st.setString(1,n.getName());
-					st.setString(2,n.getCreator());
-					rs = st.executeQuery();
-					if(rs.next()){
-						LogInfo.T("Reunion ya existe por Nombre ::" + n.getName() );
-						n.setId(rs.getString("id"));
-						return true;
-					}
-				}
 			}
-	        
-		}catch (Exception e) {
+			sql = "SELECT id FROM `meetings` WHERE `outlook_id` = ? and created_by = ? ";
+			st = conn.prepareStatement(sql);
+			st.setString(1, n.getIdZimbraIndividual());
+			st.setString(2, n.getCreator());
+			rs = st.executeQuery();
+			if (rs.next()) {
+				LogInfo.T("Reunion ya existe por id Zimbra Individual ::"
+						+ n.getName());
+				n.setId(rs.getString("id"));
+				return true;
+			}
+
+			sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ? and (external_id ='' or external_id is null) ";
+
+			st = conn.prepareStatement(sql);
+			st.setString(1, n.getName());
+			st.setString(2, n.getCreator());
+			rs = st.executeQuery();
+			if (rs.next()) {
+				LogInfo.T("Reunion ya existe por Nombre ::" + n.getName());
+				n.setId(rs.getString("id"));
+				return true;
+			}
+
+		} catch (Exception e) {
 			closeResources();
-			LogInfo.E("Excepcion:: Consultando Reunion : "+n.getName());
+			LogInfo.E("Excepcion:: Consultando Reunion : " + n.getName());
 			LogInfo.E(Util.errorToString(e));
 		}
 		return false;
 	}
-	
+
+	private boolean meetPeriodicExists(NotaZimbra n) {
+		String sql = "SELECT id FROM `meetings` WHERE `external_id` = ? and date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s') ";
+
+		LogInfo.T("CONSULTANDO Reunion PERIODICA ::" + n.getName()
+				+ " external_id " + n.getIdZimbra() + " id indiv ="
+				+ n.getIdZimbraIndividual());
+		Connection conn = null;
+		PreparedStatement st = null;
+		try {
+			conn = getConnection();
+			conn.setAutoCommit(false);
+
+			st = conn.prepareStatement(sql);
+			st.setString(1, n.getIdZimbra());
+			st.setString(2, n.getFechaActual().getDate_start());
+
+			ResultSet rs = st.executeQuery();
+			if (rs.next()) {
+				LogInfo.T("Reunion PERIODICA ya existe por idZimbra::"
+						+ n.getName());
+				n.setId(rs.getString("id"));
+				return true;
+			}
+			sql = "SELECT id FROM `meetings` WHERE `outlook_id` = ? and created_by = ? and date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s') ";
+
+			st = conn.prepareStatement(sql);
+			st.setString(1, n.getIdZimbraIndividual());
+			st.setString(2, n.getCreator());
+			st.setString(3, n.getFechaActual().getDate_start());
+			rs = st.executeQuery();
+			if (rs.next()) {
+				LogInfo.T("Reunion ya existe por id Zimbra Individual ::"
+						+ n.getName());
+				n.setId(rs.getString("id"));
+				return true;
+			}
+
+			sql = "SELECT id FROM `meetings` WHERE  `name` = ? and created_by = ? and (external_id ='' or external_id is null) and date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s') ";
+
+			st = conn.prepareStatement(sql);
+			st.setString(1, n.getName());
+			st.setString(2, n.getCreator());
+			st.setString(3, n.getFechaActual().getDate_start());
+			rs = st.executeQuery();
+			if (rs.next()) {
+				LogInfo.T("Reunion ya existe por Nombre ::" + n.getName());
+				n.setId(rs.getString("id"));
+				return true;
+			}
+
+		} catch (Exception e) {
+			closeResources();
+			LogInfo.E("Excepcion:: Consultando Reunion : " + n.getName());
+			LogInfo.E(Util.errorToString(e));
+		}
+		return false;
+	}
+
 	@SuppressWarnings("unused")
-	private boolean deleteMeetings(User u, int time)  {
+	private boolean deleteMeetings(User u, int time) {
 		LogInfo.T("Eliminar Reuniones::");
 		boolean resp = false;
 		String sql = "DELETE FROM meetings_users where meeting_id in (select id from meetings "
@@ -394,20 +474,21 @@ public class DBManagerDAO extends JDBCResourceManager {
 			conn = getConnection();
 			conn.setAutoCommit(false);
 			st = conn.prepareStatement(sql);
-			st.setString(1, Util.getLargeDate(DateType.START,time ));
+			st.setString(1, Util.getLargeDate(DateType.START, time));
 			st.setString(2, Util.getLargeDate(DateType.END, time));
 			st.setString(3, u.getIdSugar());
-//			System.out.println("datos  "+Util.getLargeDate(DateType.START) + " "+ Util.getLargeDate(DateType.END)+ " "+  u.getIdSugar() );
+			// System.out.println("datos  "+Util.getLargeDate(DateType.START) +
+			// " "+ Util.getLargeDate(DateType.END)+ " "+ u.getIdSugar() );
 			st.executeUpdate();
 
 			sql = "DELETE FROM meetings_users "
 					+ "WHERE date_modified  >= STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s') "
 					+ "AND date_modified <= STR_TO_DATE( ? ,'%m-%d-%Y %H:%i:%s') "
 					+ "AND user_id= ?";
-//			System.out.println("sql "+sql);
+			// System.out.println("sql "+sql);
 			st = conn.prepareStatement(sql);
-			st.setString(1, Util.getLargeDate(DateType.START,time));
-			st.setString(2, Util.getLargeDate(DateType.END,time));
+			st.setString(1, Util.getLargeDate(DateType.START, time));
+			st.setString(2, Util.getLargeDate(DateType.END, time));
 			st.setString(3, u.getIdSugar());
 
 			st.executeUpdate();
@@ -418,77 +499,74 @@ public class DBManagerDAO extends JDBCResourceManager {
 					+ "AND created_by=? AND type ='Zimbra'";
 
 			st = conn.prepareStatement(sql);
-			st.setString(1, Util.getLargeDate(DateType.START,time));
-			st.setString(2, Util.getLargeDate(DateType.END,time));
+			st.setString(1, Util.getLargeDate(DateType.START, time));
+			st.setString(2, Util.getLargeDate(DateType.END, time));
 			st.setString(3, u.getIdSugar());
-//			 System.out.println(sql);
+			// System.out.println(sql);
 			int r = st.executeUpdate();
 
 			conn.commit();
 			resp = (r == 0) ? false : true;
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
-				closeResources();
-			}
+			closeResources();
+		}
 		return resp;
 	}
-	
-	
-	public boolean deleteMeetings(List<NotaZimbra> notes, int random , String actualUser){
+
+	public boolean deleteMeetings(List<NotaZimbra> notes, int random,
+			String actualUser) {
 		LogInfo.T("Eliminando  Reuniones::");
 		boolean resp = false;
-		
-		for(int i = 0; i< notes.size(); i++){
-			
+
+		for (int i = 0; i < notes.size(); i++) {
+
 		}
-		
+
 		Connection conn = null;
 		Statement stm = null;
 		try {
 			conn = getConnection();
-			
+
 			stm = conn.createStatement();
 			String rel = getRelMeetUser(actualUser, random);
 			conn.setAutoCommit(false);
-			String sql = "UPDATE meetings_users SET deleted = '1' WHERE " +
-					"id IN ( # )";
-			int r = 0;	
-			if(rel != null && rel.length()>1){
+			String sql = "UPDATE meetings_users SET deleted = '1' WHERE "
+					+ "id IN ( # )";
+			int r = 0;
+			if (rel != null && rel.length() > 1) {
 				sql = sql.replaceFirst("#", rel);
-			 
-				LogInfo.T("Reuniones Eliminadas SQL1 :: "+sql);
+
+				LogInfo.T("Reuniones Eliminadas SQL1 :: " + sql);
 				r = stm.executeUpdate(sql);
 			}
-			 sql = "UPDATE meetings SET deleted = '1' WHERE created_by = '#' " +
-					 "AND (date_start BETWEEN  STR_TO_DATE( '#','%Y/%m/%d') AND STR_TO_DATE( '#','%Y/%m/%d')) " +
-					 "AND sequence <> # AND type = 'Zimbra'"; 
+			sql = "UPDATE meetings SET deleted = '1' WHERE created_by = '#' "
+					+ "AND (date_start BETWEEN  STR_TO_DATE( '#','%Y/%m/%d') AND STR_TO_DATE( '#','%Y/%m/%d')) "
+					+ "AND sequence <> # AND type = 'Zimbra'";
 			sql = sql.replaceFirst("#", actualUser);
 			sql = sql.replaceFirst("#", Util.fechaInicial);
 			sql = sql.replaceFirst("#", Util.fechaFinal);
 			sql = sql.replaceFirst("#", String.valueOf(random));
-			
-			 
-			
-			LogInfo.T("Reuniones Eliminadas SQL :: "+sql);
-		
+
+			LogInfo.T("Reuniones Eliminadas SQL :: " + sql);
+
 			r += stm.executeUpdate(sql);
 			conn.commit();
-			
+
 			resp = (r == 0) ? false : true;
-			
-			
-			LogInfo.T("Reuniones Eliminadas:: "+r);
-		}catch (Exception e) {
+
+			LogInfo.T("Reuniones Eliminadas:: " + r);
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
-				closeResources();
-			}
+			closeResources();
+		}
 		return resp;
 	}
-	
-	public String  getMailId(String mail){
-		if(mail == null){
+
+	public String getMailId(String mail) {
+		if (mail == null) {
 			return "";
 		}
 		String sql = "SELECT u.id FROM `email_addresses` eadd, `email_addr_bean_rel` eaddbean,`users` u "
@@ -496,885 +574,901 @@ public class DBManagerDAO extends JDBCResourceManager {
 				+ "AND eaddbean.`bean_module` = 'Users' "
 				+ "AND eaddbean.bean_id = u.id "
 				+ "AND eadd.email_address = ? AND u.deleted = '0'";
-		
+
 		Connection conn = null;
 		String id = null;
-		try{
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			PreparedStatement stMail = conn.prepareStatement(sql);
-			stMail.setString(1 ,  mail );   
+			stMail.setString(1, mail);
 			ResultSet rs = stMail.executeQuery();
-			
-			
-			if(rs.next()){
+
+			if (rs.next()) {
 				id = rs.getString("id");
 			}
-			
-			LogInfo.T("ID Obtenido  mail "+mail+" sugar "+id);
+
+			LogInfo.T("ID Obtenido  mail " + mail + " sugar " + id);
 			return id;
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return null;
-		
+
+		return null;
+
 	}
-	
-	public String  getUserId(String userName){
-		if(userName == null){
+
+	public String getUserId(String userName) {
+		if (userName == null) {
 			return "";
 		}
 		String sql = "SELECT u.id FROM `users` u "
 				+ "WHERE u.user_name= ? AND u.deleted = '0'";
-		
+
 		Connection conn = null;
 		String id = null;
-		try{
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			PreparedStatement stMail = conn.prepareStatement(sql);
-			stMail.setString(1 ,  userName );   
+			stMail.setString(1, userName);
 			ResultSet rs = stMail.executeQuery();
-			if(rs.next()){
+			if (rs.next()) {
 				id = rs.getString("id");
 			}
-			
+
 			return id;
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return null;
-		
+
+		return null;
+
 	}
-	
-	public String  getRelMeetUser(String actualUser, int random){
-		
-		String sql = "SELECT mu.id FROM meetings_users mu " +
-				"LEFT JOIN meetings m ON m.id = mu.meeting_id "+
-				"WHERE mu.user_id = '#' " +
-				"AND (m.date_start BETWEEN  STR_TO_DATE( '#','%Y/%m/%d') AND STR_TO_DATE( '#','%Y/%m/%d')) " +
-				"AND m.sequence <> # AND m.type = 'Zimbra'"; 
-				
+
+	public String getRelMeetUser(String actualUser, int random) {
+
+		String sql = "SELECT mu.id FROM meetings_users mu "
+				+ "LEFT JOIN meetings m ON m.id = mu.meeting_id "
+				+ "WHERE mu.user_id = '#' "
+				+ "AND (m.date_start BETWEEN  STR_TO_DATE( '#','%Y/%m/%d') AND STR_TO_DATE( '#','%Y/%m/%d')) "
+				+ "AND m.sequence <> # AND m.type = 'Zimbra'";
+
 		sql = sql.replaceFirst("#", actualUser);
 		sql = sql.replaceFirst("#", Util.fechaInicial);
 		sql = sql.replaceFirst("#", Util.fechaFinal);
 		sql = sql.replaceFirst("#", String.valueOf(random));
-		
-		
+
 		Connection conn = null;
 
-		try{
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			Statement st = conn.createStatement();
-		
+
 			ResultSet rs = st.executeQuery(sql);
-			
-			
+
 			StringBuilder sb = new StringBuilder();
-			while(rs.next()){
+			while (rs.next()) {
 				sb.append("'");
 				sb.append(rs.getString("id"));
 				sb.append("'");
 				sb.append(",");
 			}
-			if(sb.length() >0){
-				sb.deleteCharAt(sb.length()-1);
+			if (sb.length() > 0) {
+				sb.deleteCharAt(sb.length() - 1);
 			}
 			return sb.toString();
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return null;
-		
+
+		return null;
+
 	}
-	
+
 	/**
 	 * Guarda la relacion de Reunion - Usuario
+	 * 
 	 * @param r
 	 * @param u
 	 * @param idMeet
 	 * @return
 	 */
-	public boolean saveMeet(GetMsgResponse r , User u, String idMeet) {
+	public boolean saveMeet(GetMsgResponse r, User u, String idMeet) {
 		boolean resp = false;
 
-	
-		String sqlupd = "UPDATE `meetings_users` SET" +
-				" `accept_status` = ?, "+
-				" `deleted` = 0,"+
-				" `required` = ? "+
-				"WHERE meeting_id = ? AND user_id = ?";
+		String sqlupd = "UPDATE `meetings_users` SET"
+				+ " `accept_status` = ?, " + " `deleted` = 0,"
+				+ " `required` = ? " + "WHERE meeting_id = ? AND user_id = ?";
 		Connection conn = null;
-    	PreparedStatement st = null;
-		try{
+		PreparedStatement st = null;
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
-		
-			
-			if(r.getM().getInv().getComp() != null && r.getM().getInv().getComp().size()>0){
-				for(InviteComponentWithGroupInfo inv : r.getM().getInv().getComp()){
-					
-					if(inv.getFr() != null && inv.getFr().contains("...")){
-						updateMeetInfo(idMeet , inv);
+			conn.setAutoCommit(true);
+
+			if (r.getM().getInv().getComp() != null
+					&& r.getM().getInv().getComp().size() > 0) {
+				for (InviteComponentWithGroupInfo inv : r.getM().getInv()
+						.getComp()) {
+
+					if (inv.getFr() != null && inv.getFr().contains("...")) {
+						updateMeetInfo(idMeet, inv);
 					}
-					
+
 					boolean encontrado = false;
 					String ultimo_estado = "";
-					for(CalendarAttendeeWithGroupInfo cai: inv.getAt()){
-						
-						String idUserZimbra = this.getMailId( cai.getA());  // email de cada invitado
-						if(idUserZimbra == null){
+					for (CalendarAttendeeWithGroupInfo cai : inv.getAt()) {
+
+						String idUserZimbra = this.getMailId(cai.getA()); // email
+																			// de
+																			// cada
+																			// invitado
+						if (idUserZimbra == null) {
 							String username = cai.getA().split("@")[0];
 							idUserZimbra = getUserId(username);
 						}
-						if(idUserZimbra != null){
-							if(idUserZimbra.equals(u.getIdSugar())){
+						if (idUserZimbra != null) {
+							if (idUserZimbra.equals(u.getIdSugar())) {
 								encontrado = true;
-								LogInfo.T(" Usuario Actual ENCONTRADO  se actualizara el detalle" );
-								
+								LogInfo.T(" Usuario Actual ENCONTRADO  se actualizara el detalle");
+
 							}
 							String req = "0";
-							try{
-								if(cai.getRole().equals("REQ")){
+							try {
+								if (cai.getRole().equals("REQ")) {
 									req = "1";
 								}
-							}catch(java.lang.NullPointerException ne){
-								
+							} catch (java.lang.NullPointerException ne) {
+
 							}
-							
-							
-							//LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion meetings_users::" + idMeet );
-							ultimo_estado = NotaZimbra.getStatusZimbraMeetDet(cai.getPtst());
-							this.updateMeetingUser(sqlupd, conn, ultimo_estado, req, idMeet, idUserZimbra);
-							
-						}else{
-							LogInfo.T("Usuario No existe en Sugar ::" + inv.getAt() );
+
+							// LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion meetings_users::"
+							// + idMeet );
+							ultimo_estado = NotaZimbra
+									.getStatusZimbraMeetDet(cai.getPtst());
+							this.updateMeetingUser(sqlupd, conn, ultimo_estado,
+									req, idMeet, idUserZimbra);
+
+						} else {
+							LogInfo.T("Usuario No existe en Sugar ::"
+									+ inv.getAt());
 						}
 					}
-					if(!encontrado){
-						this.updateMeetingUser(sqlupd, conn, ultimo_estado, "1", idMeet, u.getIdSugar());
+					if (!encontrado) {
+						this.updateMeetingUser(sqlupd, conn, ultimo_estado,
+								"1", idMeet, u.getIdSugar());
 					}
-					
-					//conn.commit();
+
+					// conn.commit();
 				}
 			}
 
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return resp;
-		
+
+		return resp;
+
 	}
 
-	
-	private void updateMeetingUser(String sqlupd, Connection conn, String estadoReunionZimbra, 
-			String req, String idMeet, String idUserSugar ) throws SQLException {
+	private void updateMeetingUser(String sqlupd, Connection conn,
+			String estadoReunionZimbra, String req, String idMeet,
+			String idUserSugar) throws SQLException {
 		PreparedStatement st = conn.prepareStatement(sqlupd);
-		
-		LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion consulta::" +estadoReunionZimbra + " "+req+" "+ idUserSugar + " "+ idMeet );
-		
-		
-		st.setString(1, estadoReunionZimbra );
-		st.setString(2, req );
-		st.setString(3, idMeet );
-		st.setString(4, idUserSugar );
-		
+
+		LogInfo.T("ACTUALIZANDO ESTADO  DETALLE Reunion consulta::"
+				+ estadoReunionZimbra + " " + req + " " + idUserSugar + " "
+				+ idMeet);
+
+		st.setString(1, estadoReunionZimbra);
+		st.setString(2, req);
+		st.setString(3, idMeet);
+		st.setString(4, idUserSugar);
+
 		int cant = st.executeUpdate();
-		LogInfo.T("CANT ::" + cant  );
-		
-		if( cant == 0){
-			LogInfo.T("NO actualizo ESTADO  DETALLE Reunion meetings_users::" + idMeet );
+		LogInfo.T("CANT ::" + cant);
+
+		if (cant == 0) {
+			LogInfo.T("NO actualizo ESTADO  DETALLE Reunion meetings_users::"
+					+ idMeet);
 			NotaZimbra n = new NotaZimbra();
 			n.setId(idMeet);
 			n.setCreator(idUserSugar);
-			n.setStatus_met_det( estadoReunionZimbra );					
-			insertMettingUser(n , st , conn);
+			n.setStatus_met_det(estadoReunionZimbra);
+			insertMettingUser(n, st, conn);
 		}
-		
-	}
-	public String  getMail(String idUser, String module){
 
-		String sql = "SELECT em.email_address FROM  email_addr_bean_rel emrel,email_addresses em "+
-				"WHERE  emrel.bean_id = ? "+
-				"AND emrel.bean_module = ? "+
-				"AND em.id = emrel.email_address_id";
-		
+	}
+
+	public String getMail(String idUser, String module) {
+
+		String sql = "SELECT em.email_address FROM  email_addr_bean_rel emrel,email_addresses em "
+				+ "WHERE  emrel.bean_id = ? "
+				+ "AND emrel.bean_module = ? "
+				+ "AND em.id = emrel.email_address_id";
+
 		Connection conn = null;
 
-    	String mail = "";
-		try{
+		String mail = "";
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			PreparedStatement stMail = conn.prepareStatement(sql);
-			stMail.setString(1 ,  idUser );  
-			stMail.setString(2 ,  module);  
+			stMail.setString(1, idUser);
+			stMail.setString(2, module);
 			ResultSet rs = stMail.executeQuery();
-			
-			
-			if(rs.next()){
+
+			if (rs.next()) {
 				mail = rs.getString("email_address");
 			}
-			
-			LogInfo.T("Mail Obtenido  sugar "+mail);
+
+			LogInfo.T("Mail Obtenido  sugar " + mail);
 			return mail;
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return null;
-		
+
+		return null;
+
 	}
-	
-	
-	public CreateAppointmentRequest  getMeet(String  idMeet, User user) {
-		
+
+	public CreateAppointmentRequest getMeet(String idMeet, User user) {
+		this.periodic = false;
 		LogInfo.T("Obteniendo Reunion zimbra_invitee:: ");
-		String sql = "SELECT * FROM zimbra_invitee zi WHERE zi.id = ? ";
+		String sql = "SELECT zi.*, m.name as name_invite, m.created_by, m.repeat_type " +
+				"FROM zimbra_invitee zi, meetings m " +
+				"WHERE zi.id = ? " +
+				"AND zi.name = m.name " +
+				"AND zi.description = m.description "+
+				"AND m.created_by = ? " +
+				"AND m.deleted = 0 " +
+				"AND DATE_FORMAT(date(m.date_start), '%m-%d-%Y') = DATE_FORMAT(m.date_start, '%m-%d-%Y')";
+
 		actualMeet = null;
 		Connection conn = null;
-		try{
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			PreparedStatement st = conn.prepareStatement(sql);
-			st.setString(1 ,  idMeet );  
+			st.setString(1, idMeet);
+			st.setString(2, user.getIdSugar());
 
 			ResultSet rs = st.executeQuery();
-			
+
 			User userOrganizator = new User();
-			if(rs.next()){
+			if (rs.next()) {
+				this.createdBy = rs.getString("created_by");
+				this.location = rs.getString("location");
+				this.description = rs.getString("description");
+				this.name_invite = rs.getString("name_invite");
+
+				String periodic = rs.getString("repeat_type");
+				if ((periodic != null) && (!periodic.equalsIgnoreCase("NULL"))
+						&& (!periodic.equals(""))) {
+					this.periodic = true;
+				}
+
 				LogInfo.T("Reunion Obtenida OK ");
 				actualMeet = rs.getString("user_id");
-				LogInfo.T("Organizador "+user.getIdSugar());
-				userOrganizator.setIdSugar( user.getIdSugar());
-				userOrganizator.setUserName( user.getUserName() );
-				LogInfo.T("Organizador User "+user.getUserName());
-				String mail = this.getMail( user.getIdSugar(), "Users");
-				LogInfo.T("Organizador Mail "+mail);
+				LogInfo.T("Organizador " + user.getIdSugar());
+				userOrganizator.setIdSugar(user.getIdSugar());
+				userOrganizator.setUserName(user.getUserName());
+				LogInfo.T("Organizador User " + user.getUserName());
+				String mail = getMail(user.getIdSugar(), "Users");
+				LogInfo.T("Organizador Mail " + mail);
 				userOrganizator.setMail(mail);
-				
 
-				String ids  = rs.getString("user_invitees");
-				
-				String idInvitee[] = ids.split(",");
+				String ids = rs.getString("user_invitees");
+
+				String[] idInvitee = ids.split(",");
 				mail = "";
-				
+
 				List<String> mails = new ArrayList<String>();
-				for(String idInv : idInvitee){
-					mail = this.getMail(idInv, "Users");
-					if(mail == null ){
+				
+				for (String idInv : idInvitee) {
+					mail = getMail(idInv, "Users");
+					if (mail == null) {
 						continue;
-					}else{
-						mails.add(mail);
 					}
-					
+					mails.add(mail);
 				}
 
-				ids  = rs.getString("contact_invitees");
-				
-				String contactsInvitee[] = ids.split(",");
+				ids = rs.getString("contact_invitees");
+
+				String[] contactsInvitee = ids.split(",");
 				mail = "";
 
-				for(String idInv : contactsInvitee){
-					if(idInv == ""){
+				for (String idInv : contactsInvitee) {
+					if (idInv == "") {
 						continue;
 					}
-					mail = this.getMail(idInv, "Contacts");
-					if(mail == null || mail == "" ){
+					mail = getMail(idInv, "Contacts");
+					if ((mail == null) || (mail == "")) {
 						continue;
-					}else{
-						mails.add(mail);
 					}
-					
+					mails.add(mail);
 				}
-				
-				ids  = rs.getString("lead_invitees");
-				
-				String leadsInvitee[] = ids.split(",");
+
+				ids = rs.getString("lead_invitees");
+
+				String[] leadsInvitee = ids.split(",");
 				mail = "";
 
-				for(String idInv : leadsInvitee){
-					if(idInv == ""){
+				for (String idInv : leadsInvitee) {
+					if (idInv == "") {
 						continue;
 					}
-					mail = this.getMail(idInv, "Leads");
-					if(mail == null || mail == ""){
+					mail = getMail(idInv, "Leads");
+					if ((mail == null) || (mail == "")) {
 						continue;
-					}else{
-						mails.add(mail);
 					}
-					
+					mails.add(mail);
 				}
+
 				InvitationInfo inv = new InvitationInfo();
 				inv.setName(rs.getString("name"));
-				inv.setLoc(rs.getString("location"));
+				inv.setLoc(this.location);
 				inv.setFb("B");
 				inv.setTransp("0");
-				
+
 				inv.setStatus("CONF");
 				inv.setAllDay(false);
 				inv.setDraft(false);
-				
+
 				
 				List<CalendarAttendee> cas = new ArrayList<CalendarAttendee>();
 				List<EmailAddrInfo> emailAddrs = new ArrayList<EmailAddrInfo>();
-				
+
 				EmailAddrInfo emailOrg = new EmailAddrInfo();
 				emailOrg.setA(userOrganizator.getMail());
 				emailOrg.setT("t");
-				
+
 				emailAddrs.add(emailOrg);
 				
-				if(inv.getLoc() != null && inv.getLoc().length() >0){
+				if(inv.getLoc() != null && inv.getLoc().length() >0
+						&& inv.getLoc().contains("@")
+						){
 					CalendarAttendee ca = new CalendarAttendee();
 					ca.setA(inv.getLoc());
 					ca.setRole("REQ");
 					ca.setPtst("NE");
 					ca.setRsvp(true);
 					ca.setCutype("RES");
-					
+
 					cas.add(ca);
-					
+
 					EmailAddrInfo ea = new EmailAddrInfo();
 					ea.setA(inv.getLoc());
 					ea.setT("t");
-					
+
 					emailAddrs.add(ea);
 					
 				}
-				
-				for(String email : mails){
+
+				for (String email : mails) {
 					CalendarAttendee ca = new CalendarAttendee();
 					ca.setA(email);
 					ca.setRole("REQ");
 					ca.setPtst("NE");
 					ca.setRsvp(true);
-					
+
 					cas.add(ca);
-					
+
 					EmailAddrInfo ea = new EmailAddrInfo();
 					ea.setA(email);
 					ea.setT("t");
-					
+
 					emailAddrs.add(ea);
 				}
-				
+
 				inv.setAt(cas);
 				List<AlarmInfo>  lai = new ArrayList<AlarmInfo>();
-				
+
 				AlarmInfo ai = new AlarmInfo();
 				ai.setAction("DISPLAY");
 				DurationInfo di = new DurationInfo();
 				di.setNeg(true);
 				di.setM(5);
 				di.setRelated("START");
-				
+
 				AlarmTriggerInfo aif = new AlarmTriggerInfo();
 				aif.setRel(di);
-				
+
 				ai.setTrigger(aif);
-				
+
 				lai.add(ai);
-				
+
 				inv.setAlarm(lai);
-			
+
 				CalOrganizer org = new CalOrganizer();
-				
+
 				org.setA(userOrganizator.getMail());
 				org.setD(userOrganizator.getUserName());
-				
+
 				inv.setOr(org);
-				
+
 				DtTimeInfo dateStart = new DtTimeInfo();
 				Calendar c = Util.convertToCalMeet(rs.getString("date_start"));
 				dateStart.setD(Util.getMeetingDate(c));
-				
+
 				inv.setS(dateStart);
-				
+
 				DtTimeInfo dateEnd = new DtTimeInfo();
 				c = Util.convertToCalMeet(rs.getString("date_end"));
-				
+
 				dateEnd.setD(Util.getMeetingDate(c));
 				inv.setE(dateEnd);
-				
+
 				Msg m = new Msg();
 				m.setInv(inv);
-				
+
 				MimePartInfo mp = new MimePartInfo();
 				mp.setCt("text/plain");
 				mp.setContent(Util.covertUTF8(rs.getString("description")));
 				//mp.setContent(rs.getString("description"));
 				m.setMp(mp);
-				
+
 				m.setL("10");
 				m.setE(emailAddrs);
-				
+
 				CreateAppointmentRequest ar = new CreateAppointmentRequest();
 				ar.setM(m);
-				LogInfo.T("Bean Reunion Creado:: "+ ar);
+				LogInfo.T("Bean Reunion Creado:: " + ar);
 				return ar;
 			}
 			return null;
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
+
 			return null;
 		
 	}
-	
-	
-	public CancelAppointmentRequest getDeletedMeet(String  idMeet, User user) {
-			
-			LogInfo.T("Obteniendo Reunion zimbra_invitee para eliminacion:: ");
-			String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt " +
-					"WHERE mt.id = ?  AND zi.user_id = mt.id";
-			
-			Connection conn = null;
-			try{
-				conn = getConnection();
-				conn.setAutoCommit( true );
-				PreparedStatement st = conn.prepareStatement(sql);
-				st.setString(1 ,  idMeet );  
-	
-				ResultSet rs = st.executeQuery();
-				
-			
-				if(rs.next()){
-					LogInfo.T("Reunion Obtenida OK ");
-					String ids  = rs.getString("user_invitees");
-					List<EmailAddrInfo> emailAddrs = new ArrayList<EmailAddrInfo>();
-					
-					String idInvitee[] = ids.split(",");
-					String mail = "";
-					
-					List<String> mails = new ArrayList<String>();
-					for(String idInv : idInvitee){
-						mail = this.getMail(idInv, "Users");
-						if(mail == null ){
-							continue;
-						}else{
-							mails.add(mail);
-						}
-						
+
+	public CancelAppointmentRequest getDeletedMeet(String idMeet, User user) {
+
+		LogInfo.T("Obteniendo Reunion zimbra_invitee para eliminacion:: ");
+		String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt "
+				+ "WHERE mt.id = ?  AND zi.user_id = mt.id";
+
+		Connection conn = null;
+		try {
+			conn = getConnection();
+			conn.setAutoCommit(true);
+			PreparedStatement st = conn.prepareStatement(sql);
+			st.setString(1, idMeet);
+
+			ResultSet rs = st.executeQuery();
+
+			if (rs.next()) {
+				LogInfo.T("Reunion Obtenida OK ");
+				String ids = rs.getString("user_invitees");
+				List<EmailAddrInfo> emailAddrs = new ArrayList<EmailAddrInfo>();
+
+				String idInvitee[] = ids.split(",");
+				String mail = "";
+
+				List<String> mails = new ArrayList<String>();
+				for (String idInv : idInvitee) {
+					mail = this.getMail(idInv, "Users");
+					if (mail == null) {
+						continue;
+					} else {
+						mails.add(mail);
 					}
 
-					ids  = rs.getString("contact_invitees");
-					
-					String contactsInvitee[] = ids.split(",");
-					mail = "";
+				}
 
-					for(String idInv : contactsInvitee){
-						if(idInv == ""){
-							continue;
-						}
-						mail = this.getMail(idInv, "Contacts");
-						if(mail == null || mail == "" ){
-							continue;
-						}else{
-							mails.add(mail);
-						}
-						
-					}
-					
-					ids  = rs.getString("lead_invitees");
-					
-					String leadsInvitee[] = ids.split(",");
-					mail = "";
+				ids = rs.getString("contact_invitees");
 
-					for(String idInv : leadsInvitee){
-						if(idInv == ""){
-							continue;
-						}
-						mail = this.getMail(idInv, "Leads");
-						if(mail == null || mail == ""){
-							continue;
-						}else{
-							mails.add(mail);
-						}
-						
+				String contactsInvitee[] = ids.split(",");
+				mail = "";
+
+				for (String idInv : contactsInvitee) {
+					if (idInv == "") {
+						continue;
 					}
-					
-					for(String email : mails){
-						EmailAddrInfo ea = new EmailAddrInfo();
-						ea.setA(email);
-						ea.setT("t");
-						
-						emailAddrs.add(ea);
+					mail = this.getMail(idInv, "Contacts");
+					if (mail == null || mail == "") {
+						continue;
+					} else {
+						mails.add(mail);
 					}
-					
+
+				}
+
+				ids = rs.getString("lead_invitees");
+
+				String leadsInvitee[] = ids.split(",");
+				mail = "";
+
+				for (String idInv : leadsInvitee) {
+					if (idInv == "") {
+						continue;
+					}
+					mail = this.getMail(idInv, "Leads");
+					if (mail == null || mail == "") {
+						continue;
+					} else {
+						mails.add(mail);
+					}
+
+				}
+
+				for (String email : mails) {
+					EmailAddrInfo ea = new EmailAddrInfo();
+					ea.setA(email);
+					ea.setT("t");
+
+					emailAddrs.add(ea);
+				}
+
+				Msg m = new Msg();
+				m.setSu("Cancelado: " + rs.getString("name"));
+
+				MimePartInfo mp = new MimePartInfo();
+				mp.setCt("text/plain");
+				mp.setContent(rs.getString("description"));
+
+				m.setMp(mp);
+				m.setE(emailAddrs);
+
+				CancelAppointmentRequest apr = new CancelAppointmentRequest();
+				apr.setComp(0);
+				apr.setId(rs.getString("outlook_id"));
+				apr.setM(m);
+
+				return apr;
+			} else {
+				sql = "SELECT mt.* FROM meetings mt " + "WHERE mt.id = ? ";
+
+				st = conn.prepareStatement(sql);
+				st.setString(1, idMeet);
+
+				rs = st.executeQuery();
+				if (rs.next()) {
+
 					Msg m = new Msg();
-					m.setSu("Cancelado: "+rs.getString("name"));
-					
+					m.setSu("Cancelado: " + rs.getString("name"));
+
 					MimePartInfo mp = new MimePartInfo();
 					mp.setCt("text/plain");
 					mp.setContent(rs.getString("description"));
-					
+
 					m.setMp(mp);
-					m.setE(emailAddrs);
-					
 					CancelAppointmentRequest apr = new CancelAppointmentRequest();
 					apr.setComp(0);
 					apr.setId(rs.getString("outlook_id"));
 					apr.setM(m);
-					
+
 					return apr;
-				}else{
-					sql = "SELECT mt.* FROM meetings mt " +
-							"WHERE mt.id = ? ";
-	
-					st = conn.prepareStatement(sql);
-					st.setString(1 ,  idMeet );  
-		
-					rs = st.executeQuery();
-					if(rs.next()){
-						
-						Msg m = new Msg();
-						m.setSu("Cancelado: "+rs.getString("name"));
-						
-						MimePartInfo mp = new MimePartInfo();
-						mp.setCt("text/plain");
-						mp.setContent(rs.getString("description"));
-						
-						m.setMp(mp);
-						CancelAppointmentRequest apr = new CancelAppointmentRequest();
-						apr.setComp(0);
-						apr.setId(rs.getString("outlook_id"));
-						apr.setM(m);
-						
-						return apr;
-					}
 				}
-			}catch (Exception e) {
-				LogInfo.E("Excepcion:: ");
-				LogInfo.E(Util.errorToString(e));
-				closeResources();
 			}
-				
-				return null;
+		} catch (Exception e) {
+			LogInfo.E("Excepcion:: ");
+			LogInfo.E(Util.errorToString(e));
+			closeResources();
+		}
+
+		return null;
 	}
-	
-	public ModifyAppointmentRequest getModifiedMeet(String  idMeet, User user) {
-		
+
+	public ModifyAppointmentRequest getModifiedMeet(String idMeet, User user) {
+
 		LogInfo.T("Obteniendo Reunion zimbra_invitee para modificacion:: ");
-		String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt " +
-				"WHERE zi.id = ?  AND zi.user_id = mt.id";
-		
+		String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt "
+				+ "WHERE zi.id = ?  AND zi.user_id = mt.id";
+
 		Connection conn = null;
-		try{
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			PreparedStatement st = conn.prepareStatement(sql);
-			st.setString(1 ,  idMeet );  
+			st.setString(1, idMeet);
 
 			ResultSet rs = st.executeQuery();
-			
-			User userOrganizator = new User();
-			if(rs.next()){
-				LogInfo.T("Reunion Obtenida OK ");
-				LogInfo.T("Organizador "+user.getIdSugar());
-				userOrganizator.setIdSugar( user.getIdSugar());
-				userOrganizator.setUserName( user.getUserName() );
-				LogInfo.T("Organizador User "+user.getUserName());
-				String mail = this.getMail( user.getIdSugar(), "Users");
-				LogInfo.T("Organizador Mail "+mail);
-				userOrganizator.setMail(mail);
-				
 
-				String ids  = rs.getString("user_invitees");
-				
+			User userOrganizator = new User();
+			if (rs.next()) {
+				LogInfo.T("Reunion Obtenida OK ");
+				LogInfo.T("Organizador " + user.getIdSugar());
+				userOrganizator.setIdSugar(user.getIdSugar());
+				userOrganizator.setUserName(user.getUserName());
+				LogInfo.T("Organizador User " + user.getUserName());
+				String mail = this.getMail(user.getIdSugar(), "Users");
+				LogInfo.T("Organizador Mail " + mail);
+				userOrganizator.setMail(mail);
+
+				String ids = rs.getString("user_invitees");
+
 				String idInvitee[] = ids.split(",");
 				mail = "";
-				
+
 				List<String> mails = new ArrayList<String>();
-				for(String idInv : idInvitee){
+				for (String idInv : idInvitee) {
 					mail = this.getMail(idInv, "Users");
-					if(mail == null ){
+					if (mail == null) {
 						continue;
-					}else{
+					} else {
 						mails.add(mail);
 					}
-					
+
 				}
 
-				ids  = rs.getString("contact_invitees");
-				
+				ids = rs.getString("contact_invitees");
+
 				String contactsInvitee[] = ids.split(",");
 				mail = "";
 
-				for(String idInv : contactsInvitee){
-					if(idInv == ""){
+				for (String idInv : contactsInvitee) {
+					if (idInv == "") {
 						continue;
 					}
 					mail = this.getMail(idInv, "Contacts");
-					if(mail == null || mail == "" ){
+					if (mail == null || mail == "") {
 						continue;
-					}else{
+					} else {
 						mails.add(mail);
 					}
-					
+
 				}
-				
-				ids  = rs.getString("lead_invitees");
-				
+
+				ids = rs.getString("lead_invitees");
+
 				String leadsInvitee[] = ids.split(",");
 				mail = "";
 
-				for(String idInv : leadsInvitee){
-					if(idInv == ""){
+				for (String idInv : leadsInvitee) {
+					if (idInv == "") {
 						continue;
 					}
 					mail = this.getMail(idInv, "Leads");
-					if(mail == null || mail == ""){
+					if (mail == null || mail == "") {
 						continue;
-					}else{
+					} else {
 						mails.add(mail);
 					}
-					
+
 				}
 				InvitationInfo inv = new InvitationInfo();
 				inv.setName(rs.getString("name"));
 				inv.setLoc(rs.getString("location"));
 				inv.setFb("B");
 				inv.setTransp("0");
-				
+
 				inv.setStatus("CONF");
 				inv.setAllDay(false);
 				inv.setDraft(false);
-				
+
 				List<CalendarAttendee> cas = new ArrayList<CalendarAttendee>();
 				List<EmailAddrInfo> emailAddrs = new ArrayList<EmailAddrInfo>();
-				
+
 				EmailAddrInfo emailOrg = new EmailAddrInfo();
 				emailOrg.setA(userOrganizator.getMail());
 				emailOrg.setT("t");
-				
+
 				emailAddrs.add(emailOrg);
-				
-				if(inv.getLoc() != null && inv.getLoc().length() >0){
+
+				if (inv.getLoc() != null && inv.getLoc().length() > 0) {
 					CalendarAttendee ca = new CalendarAttendee();
 					ca.setA(inv.getLoc());
 					ca.setRole("REQ");
 					ca.setPtst("NE");
 					ca.setRsvp(true);
 					ca.setCutype("RES");
-					
+
 					cas.add(ca);
-					
+
 					EmailAddrInfo ea = new EmailAddrInfo();
 					ea.setA(inv.getLoc());
 					ea.setT("t");
-					
+
 					emailAddrs.add(ea);
-					
+
 				}
-				
-				for(String email : mails){
+
+				for (String email : mails) {
 					CalendarAttendee ca = new CalendarAttendee();
 					ca.setA(email);
 					ca.setRole("REQ");
 					ca.setPtst("NE");
 					ca.setRsvp(true);
-					
+
 					cas.add(ca);
-					
+
 					EmailAddrInfo ea = new EmailAddrInfo();
 					ea.setA(email);
 					ea.setT("t");
-					
+
 					emailAddrs.add(ea);
 				}
-				
+
 				inv.setAt(cas);
-				List<AlarmInfo>  lai = new ArrayList<AlarmInfo>();
-				
+				List<AlarmInfo> lai = new ArrayList<AlarmInfo>();
+
 				AlarmInfo ai = new AlarmInfo();
 				ai.setAction("DISPLAY");
 				DurationInfo di = new DurationInfo();
 				di.setNeg(true);
 				di.setM(10);
 				di.setRelated("START");
-				
+
 				AlarmTriggerInfo aif = new AlarmTriggerInfo();
 				aif.setRel(di);
-				
+
 				ai.setTrigger(aif);
-				
+
 				lai.add(ai);
-				
+
 				inv.setAlarm(lai);
-			
+
 				CalOrganizer org = new CalOrganizer();
-				
+
 				org.setA(userOrganizator.getMail());
 				org.setD(userOrganizator.getUserName());
-				
+
 				inv.setOr(org);
-				
+
 				DtTimeInfo dateStart = new DtTimeInfo();
 				Calendar c = Util.convertToCalMeet(rs.getString("date_start"));
 				dateStart.setD(Util.getMeetingDate(c));
-				
+
 				inv.setS(dateStart);
-				
+
 				DtTimeInfo dateEnd = new DtTimeInfo();
 				c = Util.convertToCalMeet(rs.getString("date_end"));
-				
+
 				dateEnd.setD(Util.getMeetingDate(c));
 				inv.setE(dateEnd);
-				
+
 				Msg m = new Msg();
-				
+
 				MimePartInfo mp = new MimePartInfo();
 				mp.setCt("text/plain");
 				mp.setContent(rs.getString("description"));
 				m.setMp(mp);
-				
+
 				m.setInv(inv);
 				m.setL("10");
 				m.setE(emailAddrs);
-				
+
 				ModifyAppointmentRequest ar = new ModifyAppointmentRequest();
 				ar.setM(m);
 				ar.setId(rs.getString("outlook_id"));
-				LogInfo.T("Bean Reunion Creado:: "+ ar);
+				LogInfo.T("Bean Reunion Creado:: " + ar);
 				return ar;
 			}
 			return null;
-		}catch (Exception e) {
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return null;
-		
+
+		return null;
+
 	}
-	public void deleteTempMeet(String  idMeet) {
+
+	public void deleteTempMeet(String idMeet) {
 		LogInfo.T("Eliminando Reunion:: ");
 		String sql = "DELETE FROM zimbra_invitee WHERE id = ? ";
 		Connection conn = null;
 
-		try{
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			PreparedStatement st = conn.prepareStatement(sql);
-			st.setString(1 ,  idMeet );  
+			st.setString(1, idMeet);
 			st.executeUpdate();
 			LogInfo.T("Reunion Eliminada OK:: ");
-			
-		}catch(Exception e){
+
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
 	}
 
-	public boolean updateMeet(String idZimbra, String idSugar)  {
+	public boolean updateMeet(String idZimbra, String idSugar) {
 		boolean resp = false;
 
-		String sql = "UPDATE meetings SET type = '"+NotaZimbra.TYPE+"', "
-			+ "outlook_id = ?, "
-			+ "status = 'Held', " 
-			+ "deleted = '0' "
-			+ "WHERE id= ? ";
-		
+		String sql = "UPDATE meetings SET type = '" + NotaZimbra.TYPE + "', "
+				+ "outlook_id = ?, " + "status = 'Held', " + "deleted = '0' "
+				+ "WHERE id= ? ";
+
 		Connection conn = null;
-    	PreparedStatement st = null;
-		try{
+		PreparedStatement st = null;
+		try {
 			conn = getConnection();
-			conn.setAutoCommit( true );
+			conn.setAutoCommit(true);
 			st = conn.prepareStatement(sql);
-			
-			st.setString(1 , idZimbra);
-			st.setString(2 , idSugar);
+
+			st.setString(1, idZimbra);
+			st.setString(2, idSugar);
 			st.executeUpdate();
-		
-		}catch (Exception e) {
+
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return resp;
+
+		return resp;
 	}
-	
-	private boolean updateMeetInfo(String idMeetSugar, InviteComponentWithGroupInfo inv) {
-		
+
+	private boolean updateMeetInfo(String idMeetSugar,
+			InviteComponentWithGroupInfo inv) {
+
 		String name = inv.getName();
 		String desc = inv.getDesc();
-//		DtTimeInfo ds = inv.getS();
-//		DtTimeInfo de = inv.getE();
-//		String startDate = ds.getD();
-//		String endDate = de.getD();
+		// DtTimeInfo ds = inv.getS();
+		// DtTimeInfo de = inv.getE();
+		// String startDate = ds.getD();
+		// String endDate = de.getD();
 		boolean resp = false;
-//		LogInfo.T("actualizando ::"+idMeetSugar+" dates :: "+startDate + " "+endDate);
-		String sql = "UPDATE meetings SET "
-			+"name = ?, "
-			+ "description = ? "
-//			+"date_start = STR_TO_DATE( ?,'%Y%m%dT%H%i%s'), " 
-//			+"date_end = STR_TO_DATE(?,'%Y%m%dT%H%i%s') " 
-			+ "WHERE id= ? ";
-		LogInfo.T("actualizando :: "+idMeetSugar);
+		// LogInfo.T("actualizando ::"+idMeetSugar+" dates :: "+startDate +
+		// " "+endDate);
+		String sql = "UPDATE meetings SET " + "name = ?, " + "description = ? "
+		// +"date_start = STR_TO_DATE( ?,'%Y%m%dT%H%i%s'), "
+		// +"date_end = STR_TO_DATE(?,'%Y%m%dT%H%i%s') "
+				+ "WHERE id= ? ";
+		LogInfo.T("actualizando :: " + idMeetSugar);
 		Connection conn = null;
-    	PreparedStatement st = null;
-		try{
+		PreparedStatement st = null;
+		try {
 			conn = getConnection();
-			//conn.setAutoCommit( false );
+			// conn.setAutoCommit( false );
 			st = conn.prepareStatement(sql);
-			st.setString(1 , name);
-			st.setString(2 , desc);
-//			st.setString(3 , startDate);
-//			st.setString(4 , endDate);
-			st.setString(3 , idMeetSugar);
+			st.setString(1, name);
+			st.setString(2, desc);
+			// st.setString(3 , startDate);
+			// st.setString(4 , endDate);
+			st.setString(3, idMeetSugar);
 			st.executeUpdate();
-		
-		}catch (Exception e) {
+
+		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
 			LogInfo.E(Util.errorToString(e));
 			closeResources();
 		}
-			
-			return resp;
+
+		return resp;
 	}
-	
+
 	public String getToken(User u) {
 		String sql = "SELECT token_id FROM zimbra_auth WHERE user_id = ? ";
 		String tk = "";
-			Connection conn = null;
-	    	PreparedStatement st = null;
-			try{
-				conn = getConnection();
-				conn.setAutoCommit( true );
-				st = conn.prepareStatement(sql);
-				
-				st.setString(1 , u.getIdSugar());
-				ResultSet rs = st.executeQuery();
-				
-				if(rs.next()){
-					tk = rs.getString("token_id");
-				}
-			}catch (Exception e) {
-				LogInfo.E("Excepcion:: ");
-				LogInfo.E(Util.errorToString(e));
-				closeResources();
+		Connection conn = null;
+		PreparedStatement st = null;
+		try {
+			conn = getConnection();
+			conn.setAutoCommit(true);
+			st = conn.prepareStatement(sql);
+
+			st.setString(1, u.getIdSugar());
+			ResultSet rs = st.executeQuery();
+
+			if (rs.next()) {
+				tk = rs.getString("token_id");
 			}
+		} catch (Exception e) {
+			LogInfo.E("Excepcion:: ");
+			LogInfo.E(Util.errorToString(e));
+			closeResources();
+		}
 		return tk;
 	}
 

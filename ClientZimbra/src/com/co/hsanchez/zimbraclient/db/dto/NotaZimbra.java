@@ -268,7 +268,7 @@ public class NotaZimbra
 			FechasReunion fr = new FechasReunion(ds,de);
 			n.fechas.add(fr);
 		}
-		n.periodica = n.fechas.size() > 1 ? true:false;
+		n.periodica = (n.fechas.size() > 1);
 		LogInfo.T("Nota Duracion::" + n.duration_minutes );
 //		LogInfo.T("Nota Fecha Fin::" + n.date_end );
 		
