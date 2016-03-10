@@ -184,7 +184,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 
 			if (meetExists(n)) {
 				LogInfo.T("ACTUALIZANDO Reunion::" + n.getName());
-				if (n.getCreator().equals(n.getModified_user_id())) {// solo
+			//	if (n.getCreator().equals(n.getModified_user_id())) {// solo
 																		// debe
 																		// actualizar
 																		// la
@@ -193,7 +193,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 																		// creador
 																		// de la
 																		// reunion
-					LogInfo.T("ES CREADOR");
+					//LogInfo.T("ES CREADOR");
 					sql = "UPDATE `meetings` SET "
 							+ "name = ?, "
 							+ "description = ?, "
@@ -203,9 +203,9 @@ public class DBManagerDAO extends JDBCResourceManager {
 							+ "date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), "
 							+ "date_end = STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'), "
 							+ "status = ?, " + "type = ?, " + "sequence = ?, "
-							+ "creator = ?, " + "assigned_user_id = ?, "
 							+ "external_id = ?, " + "outlook_id = ?, "
 							+ "date_modified = now(), " + "deleted = '0' "
+							//+ "creator = ?, " + "assigned_user_id = ?, "
 							+ "WHERE id = ? ";
 
 					LogInfo.T("Fecha Inicial:"
@@ -221,25 +221,25 @@ public class DBManagerDAO extends JDBCResourceManager {
 					st.setString(7, n.getStatus());
 					st.setString(8, n.getType());
 					st.setInt(9, n.getRandom());
-					st.setString(10, n.getCreator());
-					st.setString(11, n.getAssigned_user_id());
-					st.setString(12, n.getIdZimbra());
-					st.setString(13, n.getIdZimbraIndividual());
-					st.setString(14, n.getId());
-				} else {
-					LogInfo.T("NO ES CREADOR" + n.getModified_user_id() + " "
-							+ n.getCreator());
-					sql = "UPDATE `meetings` SET " + "external_id = ?, "
-							+ "modified_user_id = ?, " + "type = ?, "
-							+ "date_modified = now(), " + "deleted = '0' "
-							+ "WHERE id = ? ";
-					st = conn.prepareStatement(sql);
-					st.setString(1, n.getIdZimbra());
-					st.setString(2, n.getModified_user_id());
-					st.setString(3, n.getType());
-					st.setString(4, n.getId());
-
-				}
+					st.setString(10, n.getIdZimbra());
+					st.setString(11, n.getIdZimbraIndividual());
+					//st.setString(13, n.getCreator());
+//					st.setString(14, n.getAssigned_user_id());
+					st.setString(12, n.getId());
+//				} else {
+//					LogInfo.T("NO ES CREADOR" + n.getModified_user_id() + " "
+//							+ n.getCreator());
+//					sql = "UPDATE `meetings` SET " + "external_id = ?, "
+//							+ "modified_user_id = ?, " + "type = ?, "
+//							+ "date_modified = now(), " + "deleted = '0' "
+//							+ "WHERE id = ? ";
+//					st = conn.prepareStatement(sql);
+//					st.setString(1, n.getIdZimbra());
+//					st.setString(2, n.getModified_user_id());
+//					st.setString(3, n.getType());
+//					st.setString(4, n.getId());
+//
+//				}
 				int act = st.executeUpdate();
 				LogInfo.T("UPDATE actualizado 1::" + act);
 
