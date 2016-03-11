@@ -55,7 +55,7 @@ public class RecurrenceInfo {
         @XmlElement(name = "dates", type = SingleDates.class),
         @XmlElement(name = "rule", type = SimpleRepeatingRule.class)
     })
-    protected List<Object> addOrExcludeOrExcept;
+    public List<Object> addOrExcludeOrExcept;
 
     /**
      * Gets the value of the addOrExcludeOrExcept property.

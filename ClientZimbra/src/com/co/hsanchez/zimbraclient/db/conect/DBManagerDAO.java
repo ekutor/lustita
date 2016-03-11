@@ -14,22 +14,26 @@ import java.util.UUID;
 import zimbramail.AlarmInfo;
 import zimbramail.AlarmTriggerInfo;
 import zimbramail.AppointmentHitInfo;
+import zimbramail.ByDayRule;
 import zimbramail.CalOrganizer;
 import zimbramail.CalendarAttendee;
 import zimbramail.CalendarAttendeeWithGroupInfo;
 import zimbramail.CancelAppointmentRequest;
 import zimbramail.CreateAppointmentRequest;
-import zimbramail.CreateAppointmentResponse;
+import zimbramail.DateTimeStringAttr;
 import zimbramail.DtTimeInfo;
 import zimbramail.DurationInfo;
 import zimbramail.EmailAddrInfo;
 import zimbramail.GetMsgResponse;
+import zimbramail.IntervalRule;
 import zimbramail.InvitationInfo;
 import zimbramail.InviteComponentWithGroupInfo;
 import zimbramail.MimePartInfo;
 import zimbramail.ModifyAppointmentRequest;
 import zimbramail.Msg;
+import zimbramail.RecurrenceInfo;
 import zimbramail.SearchResponse;
+import zimbramail.SimpleRepeatingRule;
 
 import com.co.hsanchez.zimbraclient.Util;
 import com.co.hsanchez.zimbraclient.Util.DateType;
@@ -971,7 +975,33 @@ public class DBManagerDAO extends JDBCResourceManager {
 
 					emailAddrs.add(ea);
 				}
-
+				//citas periodicas
+				String period = rs.getString("repeat_type");
+				if( period != null && period.length() > 1){
+					LogInfo.T("Cita periodica "+period);
+					RecurrenceInfo ri = new RecurrenceInfo();
+					List<Object> listRules = new ArrayList<Object>();
+					
+					
+					SimpleRepeatingRule rule = new SimpleRepeatingRule();
+					IntervalRule interval = new IntervalRule();
+					interval.setIval(1);				
+					rule.setInterval(interval);
+					
+			
+					rule.setFreq("DAI");//repeat_until
+					
+					DateTimeStringAttr df = new DateTimeStringAttr();
+					df.setD("20160408");
+					//rule.setUntil(df);
+					listRules.add(rule);
+					
+					ri.addOrExcludeOrExcept = listRules;
+					
+					inv.setRecur(ri);
+				}
+				
+				//alarma
 				inv.setAt(cas);
 				List<AlarmInfo>  lai = new ArrayList<AlarmInfo>();
 

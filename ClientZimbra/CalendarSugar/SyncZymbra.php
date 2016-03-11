@@ -96,12 +96,19 @@ class SyncZymbra
 		$location = $_REQUEST['location'];
 		$descr = $_REQUEST['description'];
 		
+		//adicion de repeticiones periodicas
+		$repeat_type = $_REQUEST['repeat_type'];
+		$repeat_interval = $_REQUEST['repeat_interval'];
+		$repeat_count = $_REQUEST['repeat_count'];
+		$repeat_until = $_REQUEST['repeat_until'];
+		
 		$idmeet = create_guid();
 		
 		$sql = "INSERT INTO `zimbra_invitee`(`user_invitees`, `contact_invitees`, `lead_invitees`, `date_start`, `date_end`, `name`, ";
-			$sql .="`location`, `description`, `user_id`, `id`) ";
+			$sql .="`location`, `description`, `user_id`, `id`, repeat_type, repeat_interval, repeat_count, repeat_until ) ";
 			$sql .="VALUES ( '$user_invitees','$contact_invitees','$lead_invitees','$dateStart','$dateEnd',";
-			$sql .="'$name','$location','$descr','$sugarID', '$idmeet' )";
+			$sql .="'$name','$location','$descr','$sugarID',";
+			$sql .="'$repeat_type', '$repeat_interval', '$repeat_count', '$repeat_until' )";
 			$this->log("Reunion Creada ". $sql);
 			
 		if($typeMet == 1){
