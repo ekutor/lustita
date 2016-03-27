@@ -38,6 +38,22 @@ public class Util {
 		return fecha;
 	}
 	
+	public static String getMeetingRecurDate(String date){
+		SimpleDateFormat sd1 = new SimpleDateFormat("dd/MM/yyyy");
+		if(date.contains("-")){
+			sd1 = new SimpleDateFormat("yyyy-MM-dd");
+		}
+		SimpleDateFormat sd = new SimpleDateFormat("yyyyMMdd");
+		
+		String fecha = "";
+		try {
+			fecha = sd.format(sd1.parse(date));
+		} catch (ParseException e) {
+			e.printStackTrace();
+		}
+		return fecha;
+	}
+	
 	public static Calendar convertToCal(String date){
 		SimpleDateFormat sd = new SimpleDateFormat("yyyyMMdd");
 		Calendar c = Calendar.getInstance();

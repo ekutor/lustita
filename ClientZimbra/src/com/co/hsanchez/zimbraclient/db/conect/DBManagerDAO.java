@@ -11,10 +11,10 @@ import java.util.List;
 import java.util.Random;
 import java.util.UUID;
 
+import zimbramail.AddRecurrenceInfo;
 import zimbramail.AlarmInfo;
 import zimbramail.AlarmTriggerInfo;
 import zimbramail.AppointmentHitInfo;
-import zimbramail.ByDayRule;
 import zimbramail.CalOrganizer;
 import zimbramail.CalendarAttendee;
 import zimbramail.CalendarAttendeeWithGroupInfo;
@@ -31,10 +31,12 @@ import zimbramail.InviteComponentWithGroupInfo;
 import zimbramail.MimePartInfo;
 import zimbramail.ModifyAppointmentRequest;
 import zimbramail.Msg;
+import zimbramail.NumAttr;
 import zimbramail.RecurrenceInfo;
 import zimbramail.SearchResponse;
 import zimbramail.SimpleRepeatingRule;
 
+import com.co.hsanchez.zimbraclient.Frecuencia;
 import com.co.hsanchez.zimbraclient.Util;
 import com.co.hsanchez.zimbraclient.Util.DateType;
 import com.co.hsanchez.zimbraclient.db.dto.FechasReunion;
@@ -274,6 +276,8 @@ public class DBManagerDAO extends JDBCResourceManager {
 						+ " ? , ? , ? , ?, ?, now() ,?,?) ";
 
 				st = conn.prepareStatement(sql);
+				UUID uuidRel  = UUID.randomUUID();
+				n.setId(""+uuidRel);
 				st.setString(1, n.getId());
 				st.setString(2, n.getIdZimbra());
 				st.setString(3, n.getName());
@@ -827,10 +831,12 @@ public class DBManagerDAO extends JDBCResourceManager {
 
 	}
 
-	public CreateAppointmentRequest getMeet(String idMeet, User user) {
-		this.periodic = false;
+	public ResultSet gettMeetModifiedFromDB(String idMeet, User user){
+	
 		LogInfo.T("Obteniendo Reunion zimbra_invitee:: ");
-		String sql = "SELECT zi.*, m.name as name_invite, m.created_by, m.repeat_type " +
+		String sql = "SELECT zi.*,m.outlook_id, m.name as name_invite, m.created_by," +
+				" m.repeat_type as repeat_type_meet, m.repeat_until as repeat_until_meet, " +
+				" m.repeat_count as repeat_count_meet " +
 				"FROM zimbra_invitee zi, meetings m " +
 				"WHERE zi.id = ? " +
 				"AND zi.name = m.name " +
@@ -838,8 +844,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 				"AND m.created_by = ? " +
 				"AND m.deleted = 0 " +
 				"AND DATE_FORMAT(date(m.date_start), '%m-%d-%Y') = DATE_FORMAT(m.date_start, '%m-%d-%Y')";
-
-		actualMeet = null;
+		LogInfo.T("SQL :: "+sql);
 		Connection conn = null;
 		try {
 			conn = getConnection();
@@ -847,8 +852,24 @@ public class DBManagerDAO extends JDBCResourceManager {
 			PreparedStatement st = conn.prepareStatement(sql);
 			st.setString(1, idMeet);
 			st.setString(2, user.getIdSugar());
-
 			ResultSet rs = st.executeQuery();
+			return rs;
+		} catch (Exception e) {
+			LogInfo.E("Excepcion:: ");
+			LogInfo.E(Util.errorToString(e));
+			closeResources();
+		}
+		return null;
+
+	}
+		
+	public CreateAppointmentRequest getMeet(String idMeet, User user) {
+			this.periodic = false;
+		
+		actualMeet = null;
+		try{
+
+			ResultSet rs = this.gettMeetModifiedFromDB(idMeet, user);
 
 			User userOrganizator = new User();
 			if (rs.next()) {
@@ -979,24 +1000,42 @@ public class DBManagerDAO extends JDBCResourceManager {
 				String period = rs.getString("repeat_type");
 				if( period != null && period.length() > 1){
 					LogInfo.T("Cita periodica "+period);
+					Frecuencia freq;
+					if(period.equalsIgnoreCase("Daily")){
+						freq = Frecuencia.DIARIO;
+					}else if(period.equalsIgnoreCase("Weekly")){
+						freq = Frecuencia.SEMANAL;
+					}else{
+						freq = Frecuencia.MENSUAL;
+					}
 					RecurrenceInfo ri = new RecurrenceInfo();
-					List<Object> listRules = new ArrayList<Object>();
-					
+										
+					AddRecurrenceInfo add = new AddRecurrenceInfo();
 					
 					SimpleRepeatingRule rule = new SimpleRepeatingRule();
 					IntervalRule interval = new IntervalRule();
 					interval.setIval(1);				
 					rule.setInterval(interval);
 					
-			
-					rule.setFreq("DAI");//repeat_until
+					rule.setFreq(freq.getFrecuencia());//repeat_until
 					
-					DateTimeStringAttr df = new DateTimeStringAttr();
-					df.setD("20160408");
-					//rule.setUntil(df);
-					listRules.add(rule);
+					String until = rs.getString("repeat_until");
+					if(until != null && until.length() > 4){
+						DateTimeStringAttr df = new DateTimeStringAttr();
+						String ut = Util.getMeetingRecurDate(until);
+						df.setD(ut);
+						LogInfo.T("fecha fin "+ut);
+						rule.setUntil(df);
+					}else{
+						String cnt = rs.getString("repeat_count");
+						NumAttr na = new NumAttr();
+						na.setNum(Integer.parseInt(cnt));
+						rule.setCount(na);
+					}
+				
+					add.addObj(rule);
 					
-					ri.addOrExcludeOrExcept = listRules;
+					ri.addObj(add);
 					
 					inv.setRecur(ri);
 				}
@@ -1071,19 +1110,11 @@ public class DBManagerDAO extends JDBCResourceManager {
 	public CancelAppointmentRequest getDeletedMeet(String idMeet, User user) {
 
 		LogInfo.T("Obteniendo Reunion zimbra_invitee para eliminacion:: ");
-		String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt "
-				+ "WHERE mt.id = ?  AND zi.user_id = mt.id";
 
-		Connection conn = null;
-		try {
-			conn = getConnection();
-			conn.setAutoCommit(true);
-			PreparedStatement st = conn.prepareStatement(sql);
-			st.setString(1, idMeet);
+		try{
+			ResultSet rs = this.gettMeetModifiedFromDB(idMeet, user);
 
-			ResultSet rs = st.executeQuery();
-
-			if (rs.next()) {
+			if (rs != null && rs.next()) {
 				LogInfo.T("Reunion Obtenida OK ");
 				String ids = rs.getString("user_invitees");
 				List<EmailAddrInfo> emailAddrs = new ArrayList<EmailAddrInfo>();
@@ -1163,8 +1194,10 @@ public class DBManagerDAO extends JDBCResourceManager {
 
 				return apr;
 			} else {
-				sql = "SELECT mt.* FROM meetings mt " + "WHERE mt.id = ? ";
-
+				String sql = "SELECT mt.* FROM meetings mt " + "WHERE mt.id = ? ";
+				Connection conn = getConnection();
+				conn.setAutoCommit(true);
+				PreparedStatement st = conn.prepareStatement(sql);
 				st = conn.prepareStatement(sql);
 				st.setString(1, idMeet);
 
@@ -1199,17 +1232,9 @@ public class DBManagerDAO extends JDBCResourceManager {
 	public ModifyAppointmentRequest getModifiedMeet(String idMeet, User user) {
 
 		LogInfo.T("Obteniendo Reunion zimbra_invitee para modificacion:: ");
-		String sql = "SELECT zi.*, mt.outlook_id FROM zimbra_invitee zi , meetings mt "
-				+ "WHERE zi.id = ?  AND zi.user_id = mt.id";
+		try{
 
-		Connection conn = null;
-		try {
-			conn = getConnection();
-			conn.setAutoCommit(true);
-			PreparedStatement st = conn.prepareStatement(sql);
-			st.setString(1, idMeet);
-
-			ResultSet rs = st.executeQuery();
+			ResultSet rs = this.gettMeetModifiedFromDB(idMeet, user);
 
 			User userOrganizator = new User();
 			if (rs.next()) {
@@ -1327,8 +1352,53 @@ public class DBManagerDAO extends JDBCResourceManager {
 				}
 
 				inv.setAt(cas);
+				
+				//citas periodicas
+				String period = rs.getString("repeat_type_meet");
+				if( period != null && period.length() > 1){
+					LogInfo.T("Cita periodica "+period);
+					Frecuencia freq;
+					if(period.equalsIgnoreCase("Daily")){
+						freq = Frecuencia.DIARIO;
+					}else if(period.equalsIgnoreCase("Weekly")){
+						freq = Frecuencia.SEMANAL;
+					}else{
+						freq = Frecuencia.MENSUAL;
+					}
+					RecurrenceInfo ri = new RecurrenceInfo();
+										
+					AddRecurrenceInfo add = new AddRecurrenceInfo();
+					
+					SimpleRepeatingRule rule = new SimpleRepeatingRule();
+					IntervalRule interval = new IntervalRule();
+					interval.setIval(1);				
+					rule.setInterval(interval);
+					
+					rule.setFreq(freq.getFrecuencia());//repeat_until
+					
+					String until = rs.getString("repeat_until_meet");
+					if(until != null && until.length() > 4){
+						DateTimeStringAttr df = new DateTimeStringAttr();
+						String ut = Util.getMeetingRecurDate(until);
+						df.setD(ut);
+						LogInfo.T("fecha fin "+ut);
+						rule.setUntil(df);
+					}else{
+						String cnt = rs.getString("repeat_count_meet");
+						NumAttr na = new NumAttr();
+						na.setNum(Integer.parseInt(cnt));
+						rule.setCount(na);
+					}
+				
+					add.addObj(rule);
+					
+					ri.addObj(add);
+					
+					inv.setRecur(ri);
+				}
+				
 				List<AlarmInfo> lai = new ArrayList<AlarmInfo>();
-
+				
 				AlarmInfo ai = new AlarmInfo();
 				ai.setAction("DISPLAY");
 				DurationInfo di = new DurationInfo();
@@ -1378,7 +1448,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 				ModifyAppointmentRequest ar = new ModifyAppointmentRequest();
 				ar.setM(m);
 				ar.setId(rs.getString("outlook_id"));
-				LogInfo.T("Bean Reunion Creado:: " + ar);
+				LogInfo.T("Bean Reunion Modificacion Creado:: " + ar);
 				return ar;
 			}
 			return null;

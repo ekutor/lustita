@@ -168,6 +168,7 @@ public class ZyncZimbra {
 		if(meet != null){
 			CancelAppointmentResponse resp = saveZimbraMeet(meet);
 			LogInfo.T("Eliminada : " );
+			db.deleteTempMeet(idMeet);
 		}
 	return null;
 	}
