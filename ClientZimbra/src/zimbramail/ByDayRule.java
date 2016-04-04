@@ -67,6 +67,14 @@ public class ByDayRule {
         }
         return this.wkday;
     }
+    
+    public void addDay(WkDay day){
+    	 if (wkday == null) {
+             wkday = new ArrayList<WkDay>();
+         }
+    	 wkday.add(day);
+    }
+    
 
     /**
      * Gets the value of the unusedCodeGenHelper property.

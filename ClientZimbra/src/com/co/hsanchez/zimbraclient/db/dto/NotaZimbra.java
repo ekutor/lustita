@@ -32,6 +32,7 @@ public class NotaZimbra
 	private String status_met_det;
 	private int random;
 	private String idZimbraIndividual;
+	private String repeatType = "",repeatInterval= "",repeatCount = "",repeatParentId = "",repeatUntil = "";
 	
 	
 	public static final String TYPE = "Zimbra";
@@ -338,4 +339,56 @@ public class NotaZimbra
 	public void setStatus_met_det(String status_met_det) {
 		this.status_met_det = status_met_det;
 	}
+
+
+	public String getRepeatType() {
+		return repeatType;
+	}
+
+
+	public void setRepeatType(String repeatType) {
+		this.repeatType = repeatType;
+	}
+
+
+	public String getRepeatInterval() {
+		return repeatInterval;
+	}
+
+
+	public void setRepeatInterval(String repeatInterval) {
+		this.repeatInterval = repeatInterval;
+	}
+
+
+	public String getRepeatCount() {
+		return repeatCount;
+	}
+
+
+	public void setRepeatCount(String repeatCount) {
+		this.repeatCount = repeatCount;
+	}
+
+
+	public String getRepeatParentId() {
+		return repeatParentId;
+	}
+
+
+	public void setRepeatParentId(String repeatParentId) {
+		this.repeatParentId = repeatParentId;
+	}
+
+
+	public String getRepeatUntil() {
+		return repeatUntil;
+	}
+
+
+	public void setRepeatUntil(String repeatUntil) {
+		this.repeatUntil = repeatUntil;
+	}
+
+	
  }

@@ -143,7 +143,7 @@ public class ZyncZimbra {
 				CreateAppointmentResponse resp = saveZimbraMeet(meet);
 				//db.deleteTempMeet(idMeet);
 				LogInfo.T("zimbra id : " +resp.getApptId() + " "+ resp.getCalItemId() + " "+ resp.getInvId());
-				db.updateMeet(resp.getInvId() ,  DBManagerDAO.actualMeet);
+				db.updateMeet(resp.getInvId() ,  DBManagerDAO.actualMeet, meet.getM().getInv().getRecur() != null, meet.getM().getInv().getName());
 			}else{
 				LogInfo.T("reunion no encontrada:"+idMeet);
 			}
@@ -156,7 +156,7 @@ public class ZyncZimbra {
 		ModifyAppointmentRequest meet = db.getModifiedMeet(idMeet, user);
 		if(meet != null){
 			ModifyAppointmentResponse resp = saveZimbraMeet(meet);
-			db.updateMeet(resp.getInvId() ,idMeet );
+			db.updateMeet(resp.getInvId() ,idMeet , meet.getM().getInv().getRecur() != null, meet.getM().getInv().getName());
 			LogInfo.T("modificada zimbra id : " +resp.getApptId() + " "+ resp.getCalItemId() + " "+ resp.getInvId());
 		}
 	return null;
@@ -168,7 +168,7 @@ public class ZyncZimbra {
 		if(meet != null){
 			CancelAppointmentResponse resp = saveZimbraMeet(meet);
 			LogInfo.T("Eliminada : " );
-			db.deleteTempMeet(idMeet);
+			db.deleteTempMeet(idMeet, meet);
 		}
 	return null;
 	}
@@ -190,7 +190,13 @@ public class ZyncZimbra {
 	
 	public CancelAppointmentResponse saveZimbraMeet(CancelAppointmentRequest ar) {
 		LogInfo.T("Enviando Reunion de ELIMINACION  a Zimbra:: ");
-		CancelAppointmentResponse resp = port.cancelAppointmentRequest(ar);
+		CancelAppointmentResponse resp = null;
+		try{
+			resp = port.cancelAppointmentRequest(ar);
+		}catch(Exception e){
+			LogInfo.E("Excepcion:: ");
+			LogInfo.E(Util.errorToString(e));
+		}
 		LogInfo.T("Respuesta Zimbra :: ");
 		return resp;
 	}

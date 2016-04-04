@@ -15,6 +15,7 @@ import zimbramail.AddRecurrenceInfo;
 import zimbramail.AlarmInfo;
 import zimbramail.AlarmTriggerInfo;
 import zimbramail.AppointmentHitInfo;
+import zimbramail.ByDayRule;
 import zimbramail.CalOrganizer;
 import zimbramail.CalendarAttendee;
 import zimbramail.CalendarAttendeeWithGroupInfo;
@@ -35,6 +36,7 @@ import zimbramail.NumAttr;
 import zimbramail.RecurrenceInfo;
 import zimbramail.SearchResponse;
 import zimbramail.SimpleRepeatingRule;
+import zimbramail.WkDay;
 
 import com.co.hsanchez.zimbraclient.Frecuencia;
 import com.co.hsanchez.zimbraclient.Util;
@@ -271,10 +273,11 @@ public class DBManagerDAO extends JDBCResourceManager {
 				LogInfo.T("INSERTANDO Reunion::" + n.getName());
 				sql = "INSERT INTO `meetings`(`id`, `external_id`,`name`, `description`, `deleted`, `location`, "
 						+ " `creator`, `duration_minutes`, `date_start`, date_end ,`status`, "
-						+ "`type` ,created_by, assigned_user_id, modified_user_id, date_entered, sequence ,outlook_id ) "
+						+ "`type` ,created_by, assigned_user_id, modified_user_id, date_entered, sequence ,outlook_id," +
+						"repeat_type, repeat_interval, repeat_until, repeat_count, repeat_parent_id ) "
 						+ "VALUES ( ?, ?, ?, ?, ?, ?, ?, ?,  STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s'), STR_TO_DATE(?,'%m-%d-%Y %H:%i:%s'),"
-						+ " ? , ? , ? , ?, ?, now() ,?,?) ";
-
+						+ " ? , ? , ? , ?, ?, now() ,?,?, ? ,? , ? , ?, ?) ";
+				
 				st = conn.prepareStatement(sql);
 				UUID uuidRel  = UUID.randomUUID();
 				n.setId(""+uuidRel);
@@ -295,6 +298,12 @@ public class DBManagerDAO extends JDBCResourceManager {
 				st.setString(15, n.getModified_user_id());
 				st.setInt(16, n.getRandom());
 				st.setString(17, n.getIdZimbraIndividual());
+				//Repeats hack
+				st.setString(18, n.getRepeatType());
+				st.setString(19, n.getRepeatInterval());
+				st.setString(20, n.getRepeatUntil());
+				st.setString(21, n.getRepeatCount());
+				st.setString(22, n.getRepeatParentId());
 				st.executeUpdate();
 
 				insertMettingUser(n, st, conn);
@@ -410,22 +419,41 @@ public class DBManagerDAO extends JDBCResourceManager {
 	}
 
 	private boolean meetPeriodicExists(NotaZimbra n) {
-		String sql = "SELECT id FROM `meetings` WHERE `external_id` = ? and date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s') ";
-
-		LogInfo.T("CONSULTANDO Reunion PERIODICA ::" + n.getName()
-				+ " external_id " + n.getIdZimbra() + " id indiv ="
-				+ n.getIdZimbraIndividual());
+		String sql = "SELECT * FROM `meetings` WHERE `external_id` = ? ";
+		
+		
 		Connection conn = null;
 		PreparedStatement st = null;
 		try {
 			conn = getConnection();
 			conn.setAutoCommit(false);
+			//HACK
+			//obtener la periocidad de la cita para que Sugar entienda que  es periodica y ya estaba cuando modifican la fecha ya que esta informacion no la devuelve sugar
 
+			
+			st = conn.prepareStatement(sql);
+			st.setString(1, n.getIdZimbra());
+			ResultSet rs = st.executeQuery();
+			
+			if (rs.next()) {
+				n.setRepeatType(rs.getString("repeat_type"));
+				n.setRepeatInterval(rs.getString("repeat_interval"));
+				n.setRepeatCount(rs.getString("repeat_count"));
+				n.setRepeatParentId(rs.getString("repeat_parent_id"));
+				n.setRepeatUntil(rs.getString("repeat_until"));
+			}
+			
+			sql = "SELECT id FROM `meetings` WHERE `external_id` = ? and date_start = STR_TO_DATE( ?,'%m-%d-%Y %H:%i:%s') ";
+
+			LogInfo.T("CONSULTANDO Reunion PERIODICA ::" + n.getName()
+					+ " external_id " + n.getIdZimbra() + " id indiv ="
+					+ n.getIdZimbraIndividual());
+			
 			st = conn.prepareStatement(sql);
 			st.setString(1, n.getIdZimbra());
 			st.setString(2, n.getFechaActual().getDate_start());
 
-			ResultSet rs = st.executeQuery();
+			rs = st.executeQuery();
 			if (rs.next()) {
 				LogInfo.T("Reunion PERIODICA ya existe por idZimbra::"
 						+ n.getName());
@@ -1017,6 +1045,53 @@ public class DBManagerDAO extends JDBCResourceManager {
 					interval.setIval(1);				
 					rule.setInterval(interval);
 					
+					//interval
+					String repeat = rs.getString("repeat_dow");
+					
+					if(repeat != null){
+						ByDayRule byd = new ByDayRule();
+				
+						
+						if(repeat.contains("0")){
+							WkDay wd = new WkDay();
+							wd.setDay("SU");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("1")){
+							WkDay wd = new WkDay();
+							wd.setDay("MO");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("2")){
+							WkDay wd = new WkDay();
+							wd.setDay("TU");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("3")){
+							WkDay wd = new WkDay();
+							wd.setDay("WE");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("4")){
+							WkDay wd = new WkDay();
+							wd.setDay("TH");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("5")){
+							WkDay wd = new WkDay();
+							wd.setDay("FR");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("6")){
+							WkDay wd = new WkDay();
+							wd.setDay("SA");
+							byd.addDay(wd);
+						}
+						
+						
+						rule.setByday(byd);
+					}
+					
 					rule.setFreq(freq.getFrecuencia());//repeat_until
 					
 					String until = rs.getString("repeat_until");
@@ -1376,6 +1451,54 @@ public class DBManagerDAO extends JDBCResourceManager {
 					
 					rule.setFreq(freq.getFrecuencia());//repeat_until
 					
+					//interval
+					String repeat = rs.getString("repeat_dow");
+					
+					if(repeat != null){
+						ByDayRule byd = new ByDayRule();
+				
+						
+						if(repeat.contains("0")){
+							WkDay wd = new WkDay();
+							wd.setDay("SU");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("1")){
+							WkDay wd = new WkDay();
+							wd.setDay("MO");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("2")){
+							WkDay wd = new WkDay();
+							wd.setDay("TU");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("3")){
+							WkDay wd = new WkDay();
+							wd.setDay("WE");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("4")){
+							WkDay wd = new WkDay();
+							wd.setDay("TH");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("5")){
+							WkDay wd = new WkDay();
+							wd.setDay("FR");
+							byd.addDay(wd);
+						}
+						if(repeat.contains("6")){
+							WkDay wd = new WkDay();
+							wd.setDay("SA");
+							byd.addDay(wd);
+						}
+						
+						
+						rule.setByday(byd);
+					}
+					
+					
 					String until = rs.getString("repeat_until_meet");
 					if(until != null && until.length() > 4){
 						DateTimeStringAttr df = new DateTimeStringAttr();
@@ -1462,17 +1585,33 @@ public class DBManagerDAO extends JDBCResourceManager {
 
 	}
 
-	public void deleteTempMeet(String idMeet) {
+	public void deleteTempMeet(String idMeet, CancelAppointmentRequest meet) {
 		LogInfo.T("Eliminando Reunion:: ");
-		String sql = "DELETE FROM zimbra_invitee WHERE id = ? ";
+		String sql = "SELECT repeat_type FROM zimbra_invitee WHERE id = ? ";
 		Connection conn = null;
 
 		try {
 			conn = getConnection();
 			conn.setAutoCommit(true);
+			
 			PreparedStatement st = conn.prepareStatement(sql);
 			st.setString(1, idMeet);
+			ResultSet rs = st.executeQuery();
+			if(rs.getString("repeat_type") != null && !rs.getString("repeat_type").equals("NULL")){
+				sql = "DELETE FROM meetings WHERE outlook_id = ? ";
+				
+				st = conn.prepareStatement(sql);
+				st.setString(1, meet.getId());
+				st.executeUpdate();
+				
+			}
+			sql = "DELETE FROM zimbra_invitee WHERE id = ? ";
+			st = conn.prepareStatement(sql);
+			st.setString(1, idMeet);
 			st.executeUpdate();
+			
+			sql = "DELETE FROM meet WHERE id = ? ";
+			
 			LogInfo.T("Reunion Eliminada OK:: ");
 
 		} catch (Exception e) {
@@ -1482,12 +1621,13 @@ public class DBManagerDAO extends JDBCResourceManager {
 		}
 	}
 
-	public boolean updateMeet(String idZimbra, String idSugar) {
+	public boolean updateMeet(String idZimbra, String idSugar, boolean isPeriodic, String nameInv ) {
 		boolean resp = false;
 
 		String sql = "UPDATE meetings SET type = '" + NotaZimbra.TYPE + "', "
 				+ "outlook_id = ?, " + "status = 'Held', " + "deleted = '0' "
 				+ "WHERE id= ? ";
+		
 
 		Connection conn = null;
 		PreparedStatement st = null;
@@ -1499,6 +1639,14 @@ public class DBManagerDAO extends JDBCResourceManager {
 			st.setString(1, idZimbra);
 			st.setString(2, idSugar);
 			st.executeUpdate();
+			
+			if(isPeriodic){
+				sql = "UPDATE meetings SET type = '" + NotaZimbra.TYPE + "' "
+						+ "WHERE name = ? ";
+				st = conn.prepareStatement(sql);
+				st.setString(1, nameInv);
+				st.executeUpdate();
+			}
 
 		} catch (Exception e) {
 			LogInfo.E("Excepcion:: ");
