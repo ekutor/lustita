@@ -931,7 +931,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 				
 				for (String idInv : idInvitee) {
 					mail = getMail(idInv, "Users");
-					if (mail == null) {
+					if (mail == null || mail.length()<3) {
 						continue;
 					}
 					mails.add(mail);
@@ -947,7 +947,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 						continue;
 					}
 					mail = getMail(idInv, "Contacts");
-					if ((mail == null) || (mail == "")) {
+					if ((mail == null) || mail.length()<3) {
 						continue;
 					}
 					mails.add(mail);
@@ -963,7 +963,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 						continue;
 					}
 					mail = getMail(idInv, "Leads");
-					if ((mail == null) || (mail == "")) {
+					if (mail == null || mail.length()<3 ) {
 						continue;
 					}
 					mails.add(mail);
