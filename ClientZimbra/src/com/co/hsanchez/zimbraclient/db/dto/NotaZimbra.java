@@ -352,6 +352,9 @@ public class NotaZimbra
 
 
 	public String getRepeatInterval() {
+		if(repeatInterval != null && repeatInterval.equals("")){
+			return "1";
+		}
 		return repeatInterval;
 	}
 
@@ -362,6 +365,9 @@ public class NotaZimbra
 
 
 	public String getRepeatCount() {
+		if(repeatCount != null && repeatCount.equals("")){
+			return null;
+		}
 		return repeatCount;
 	}
 
@@ -382,6 +388,9 @@ public class NotaZimbra
 
 
 	public String getRepeatUntil() {
+		if(repeatUntil != null && repeatUntil.equals("")){
+			return null;
+		}
 		return repeatUntil;
 	}
 
