@@ -159,7 +159,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 					LogInfo.T("Reunion recibida::" + n.getIdZimbra());
 					for (FechasReunion fecha : n.getFechas()) {
 						n.setFechaActual(fecha);
-						insertMeeting(n);
+						insertMeeting(n, u.getIdSugar());
 						l.add(n);
 					}
 				}
@@ -180,7 +180,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 	 * @param n
 	 * @return
 	 */
-	private boolean insertMeeting(NotaZimbra n) {
+	private boolean insertMeeting(NotaZimbra n, String actualUserId) {
 		boolean resp = false;
 		String sql = "";
 		LogInfo.T("Guardando Reunion::" + n.getName());
@@ -248,6 +248,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 //					st.setString(4, n.getId());
 //
 //				}
+					
 				int act = st.executeUpdate();
 				LogInfo.T("UPDATE actualizado 1::" + act);
 
@@ -255,6 +256,8 @@ public class DBManagerDAO extends JDBCResourceManager {
 						+ " `accept_status` = ?, deleted = '0' "
 						+ "WHERE user_id = ? " + "AND meeting_id = ?";
 				st = conn.prepareStatement(sql2);
+				
+				
 				// Actualiza la relacion con el usuario sincronizador
 				LogInfo.T("UPDATE accept_status::" + n.getStatus_met_det()
 						+ "  asigned " + n.getCreator() + " " + n.getId());
@@ -268,6 +271,12 @@ public class DBManagerDAO extends JDBCResourceManager {
 				if (act == 0) {
 					insertMettingUser(n, st, conn);
 				}
+				LogInfo.T("UPDATE Actualizando Usuario Actual para meeting_user ::" + actualUserId);
+				String sqlupd = "UPDATE `meetings_users` SET"
+						+ " `accept_status` = ?, " + " `deleted` = 0,"
+						+ " `required` = ? " + "WHERE meeting_id = ? AND user_id = ?";
+				this.updateMeetingUser(sqlupd, conn, n.getStatus_met_det(), "1", n.getId(), actualUserId);
+				LogInfo.T("UPDATE Actualizando  Usuario Actual Finalizado");
 
 			} else {
 				LogInfo.T("INSERTANDO Reunion::" + n.getName());
@@ -362,6 +371,8 @@ public class DBManagerDAO extends JDBCResourceManager {
 		st.executeUpdate();
 		//
 	}
+	
+	
 
 	private boolean meetExists(NotaZimbra n) {
 		if (n.isPeriodica()) {
@@ -815,7 +826,7 @@ public class DBManagerDAO extends JDBCResourceManager {
 
 		if (cant == 0) {
 			LogInfo.T("NO actualizo ESTADO  DETALLE Reunion meetings_users::"
-					+ idMeet);
+					+ idMeet + " Se procede a Insertar Reunion");
 			NotaZimbra n = new NotaZimbra();
 			n.setId(idMeet);
 			n.setCreator(idUserSugar);
